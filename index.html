@@ -5689,7 +5689,7 @@ do update set
     return;
   }
 
-  const name = sqlEscape(document.getElementById('gen-name').value);
+    const name = sqlEscape(document.getElementById('gen-name').value);
   const grade = sqlEscape(document.getElementById('gen-grade').value);
   const category = sqlEscape(document.getElementById('gen-category').value);
   const sourceDoc = sqlEscape(document.getElementById('gen-source').value);
@@ -5698,22 +5698,35 @@ do update set
     .filter(Boolean)
     .map(sqlEscape);
 
-  const stepsSql = steps.map((step, i) =>
-    `select id, ${i + 1}, '${step}' from t`
-  ).join('\nunion all\n');
+  if (!steps.length) {
+    out.value = '-- Añade al menos un paso antes de generar el SQL.';
+    return;
+  }
 
-  out.value = `with t as (
+  const stepsSql = steps.map((step, i) =>
+    `(v_technique_id, ${i + 1}, '${step}')`
+  ).join(',\n    ');
+
+  out.value = `do $$
+declare
+  v_technique_id uuid;
+begin
   insert into public.techniques (name, grade, category, source_doc, active)
   values ('${name}', '${grade}', '${category}', '${sourceDoc}', true)
   on conflict (name, grade, source_doc)
-  do update set category = excluded.category, active = true
-  returning id
-),
-deleted as (
-  delete from public.technique_steps where technique_id in (select id from t)
-)
-insert into public.technique_steps (technique_id, step_order, step_text)
-${stepsSql};`;
+  do update set
+    category = excluded.category,
+    active = true
+  returning id into v_technique_id;
+
+  delete from public.technique_steps
+  where technique_id = v_technique_id;
+
+  insert into public.technique_steps (technique_id, step_order, step_text)
+  values
+    ${stepsSql};
+end $$;`;
+
 }
 
 // ═══════════════════════════════════════════════════════════════════════
