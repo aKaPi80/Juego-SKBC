@@ -2113,11 +2113,11 @@ function exitGame() {
 // GRADE SYSTEM
 // ═══════════════════════════════════════════════════════════════════════
 const GRADES = {
-  '5kyu':  { label: '5º Kyu · Blanco/Amarillo', belt: 'belt-5kyu', order: 1 },
-  '4kyu':  { label: '4º Kyu · Amarillo/Naranja', belt: 'belt-4kyu', order: 2 },
-  '3kyu':  { label: '3º Kyu · Naranja/Verde', belt: 'belt-3kyu', order: 3 },
-  '2kyu':  { label: '2º Kyu · Verde/Azul', belt: 'belt-2kyu', order: 4 },
-  '1kyu':  { label: '1º Kyu · Azul/Marrón', belt: 'belt-1kyu', order: 5 },
+  '5kyu':  { label: '5º Kyu · Amarillo', belt: 'belt-5kyu', order: 1 },
+  '4kyu':  { label: '4º Kyu · Naranja', belt: 'belt-4kyu', order: 2 },
+  '3kyu':  { label: '3º Kyu · Verde', belt: 'belt-3kyu', order: 3 },
+  '2kyu':  { label: '2º Kyu · Azul', belt: 'belt-2kyu', order: 4 },
+  '1kyu':  { label: '1º Kyu · Marrón', belt: 'belt-1kyu', order: 5 },
   'shodan':{ label: 'Shodan · 初段 (1º Dan)', belt: 'belt-shodan', order: 6 },
   'nidan': { label: 'Nidan · 二段 (2º Dan)', belt: 'belt-nidan', order: 7 },
   'sandan':{ label: 'Sandan · 三段 (3º Dan)', belt: 'belt-sandan', order: 8 },
@@ -2449,7 +2449,7 @@ const Q_SHAKUJO = [
 const Q_SKBC = [
   { q: '¿En qué ciudad entrena el SKBC Gipuzkoa?', a: 'Gainberri, Tolosa (Gipuzkoa)', opts: ['Gainberri, Tolosa (Gipuzkoa)', 'Donostia-San Sebastián', 'Bilbao', 'Irun'], explain: 'El SKBC Gipuzkoa entrena en Gainberri, en Tolosa, Gipuzkoa.', grade: '5kyu' },
   { q: '¿En qué año y mes se fundó el SKBC Gipuzkoa?', a: 'Octubre de 2023', opts: ['Octubre de 2023', 'Enero de 2020', 'Septiembre de 2019', 'Marzo de 2022'], explain: 'El SKBC Gipuzkoa fue fundado en octubre de 2023 en Tolosa.', grade: '5kyu' },
-  { q: '¿Qué significan las siglas SKBC?', a: 'Shorinji Kempo Basque Country', opts: ['Shorinji Kempo Branch Club', 'Shorinji Kempo Basque Center', 'Shorinji Kempo Budo Club', 'Shorinji Kempo Basque Championship'], explain: 'SKBC = Shorinji Kempo Basque Country. Es el nombre de nuestro club en el País Vasco, afiliado a la IKA.', grade: '5kyu' },
+  { q: '¿Qué significan las siglas SKBC?', a: 'Shorinji Kempo Basque Country', opts: ['Shorinji Kempo Basque Country', 'Shorinji Kempo Branch Club', 'Shorinji Kempo Basque Center', 'Shorinji Kempo Budo Club'],
   { q: '¿A qué federación está afiliado el SKBC Gipuzkoa?', a: 'IKA (International Kempo Association)', opts: ['IKA (International Kempo Association)', 'FESK (Federación Española de Shorinji Kempo)', 'WSKO directamente', 'Ninguna federación'], explain: 'El SKBC Gipuzkoa está afiliado a la IKA — British Shorinji Kempo Federation — siguiendo la tradición del Shorinji Kempo en el Reino Unido.', grade: '5kyu' },
   { q: '¿En qué territorio histórico está Tolosa, donde entrena el SKBC Gipuzkoa?', a: 'Gipuzkoa (País Vasco)', opts: ['Gipuzkoa (País Vasco)', 'Bizkaia (País Vasco)', 'Álava (País Vasco)', 'Navarra'], explain: 'Tolosa está en Gipuzkoa, uno de los tres territorios históricos del País Vasco. ¡De ahí viene el nombre del club!', grade: '5kyu' },
   { q: '¿Cómo se dice "Shorinji Kempo" en euskera (el idioma vasco)?', a: 'Se mantiene igual — Shorinji Kempo es japonés', opts: ['Se mantiene igual — Shorinji Kempo es japonés', 'Eskuko Borroka', 'Arte Martzialak', 'Borroka Gipuzkoarra'], explain: 'El nombre "Shorinji Kempo" es japonés y se mantiene igual en todos los idiomas, incluido el euskera. ¡Como el nombre del fundador Doshin So!', grade: '5kyu' },
@@ -3230,8 +3230,12 @@ function setupKiai() {
 }
 
 function renderKiai() {
-  if (gameState.kiaiLife <= 0 || gameState.kiaiIdx >= gameState.kiaiPool.length) {
+  if (gameState.kiaiLife <= 0) {
     endKiai(); return;
+  }
+  if (gameState.kiaiIdx >= gameState.kiaiPool.length) {
+    gameState.kiaiPool = shuffle([...KIAI_PAIRS]);
+    gameState.kiaiIdx = 0;
   }
 
   const pair = gameState.kiaiPool[gameState.kiaiIdx];
@@ -3654,12 +3658,11 @@ const KEIMYAKU_SIMPLE = [
     eu_opts:['Plexo solarra — esternoi azpiko zuloa','Esternoia — bularraren erdia','Lepoko alboa — arteria karotidoa','Lepoko atzea — garezurraren oinarria']
   },
   { nombre:'Mikazuki', kanji:'三日月', kyu:'5º Kyu', emoji:'🌙',
-    zona:'Barbilla — parte inferior de la cara, bajo el labio inferior (mentón)',
-    eu_zona:'Kokotsa — aurpegiko beheko zatia, ezpain azpian',
-    opts:['Barbilla — parte inferior de la cara, bajo el labio inferior (mentón)',
-          'Frente — zona central entre las cejas',
-          'Mandíbula lateral — ángulo mandibular debajo del pómulo',
-          'Plexo solar — hueco debajo del esternón'],
+    zona:'Mandíbula lateral — ángulo mandibular debajo del pómulo',
+opts:['Mandíbula lateral — ángulo mandibular debajo del pómulo',
+      'Barbilla — parte inferior de la cara bajo el labio',
+      'Frente — zona central entre las cejas',
+      'Plexo solar — hueco debajo del esternón'],
     eu_opts:['Kokotsa — aurpegiko beheko zatia','Kopeta — bekain arteko zona','Masailezurra — masailezurraren angelua','Plexo solarra — esternoi azpiko zuloa']
   },
   { nombre:'Hakusetsu', kanji:'白雪', kyu:'5º Kyu', emoji:'❄️',
@@ -3673,12 +3676,11 @@ const KEIMYAKU_SIMPLE = [
   },
   // ─── 4º KYU ───
   { nombre:'Mae zanmai', kanji:'前三昧', kyu:'4º Kyu', emoji:'🎯',
-    zona:'Parte frontal del cuello — garganta, sobre la tráquea y cartílago tiroides',
-    eu_zona:'Lepoko aurrea — eztarria, trakea eta tiroideoaren kartilago gainean',
-    opts:['Parte frontal del cuello — garganta, sobre la tráquea y cartílago tiroides',
-          'Lateral del cuello — arteria carótida',
-          'Base del cuello — fosa supraclavicular',
-          'Nuca — parte posterior del cuello'],
+    zona:'Costillas frontales del torso — cara anterior del tórax, zona costal inferior bajo el pecho',
+opts:['Costillas frontales del torso — cara anterior del tórax, zona costal inferior bajo el pecho',
+      'Lateral del cuello — arteria carótida',
+      'Base del cuello — fosa supraclavicular',
+      'Nuca — parte posterior del cuello'],
     eu_opts:['Lepoko aurrea — eztarria, tiroideoaren gainean','Lepoko alboa — arteria karotidoa','Lepoko oinarria — fosa supraklabikularra','Lepoko atzea']
   },
   { nombre:'Yoko zanmai', kanji:'横三昧', kyu:'4º Kyu', emoji:'⚡',
@@ -3839,12 +3841,11 @@ const KEIMYAKU_SIMPLE = [
     eu_opts:['Ukondoaren barne aldea — ukondoaren tolestura (fosa antekubitala)','Ukondoaren kanpoko aldea — epikondilo laterala','Besoaren barne aldea — zona axilarra, bizeps brakiala','Besaurre barne aldea — palmar aldea, erdi zona']
   },
   { nombre:'Nichigetsu', kanji:'日月', kyu:'Shodan', emoji:'🌗',
-    zona:'Lateral de la cabeza — zona temporal, entre Shin-e y Sango (sobre la sien, nivel de la oreja)',
-    eu_zona:'Buruaren albo temporal zona — Shin-e eta Sango-ren artean (belarriaren mailan, tenplua gainean)',
-    opts:['Entrecejo — zona central entre las cejas, glabela (entre Shin-e y el puente nasal)',
-          'Coronilla — punto más alto de la cabeza',
-          'Hipocondrio lateral — debajo de las costillas flotantes',
-          'Frente alta — por encima de la línea del cabello'],
+    zona:'Entrecejo — zona central entre las cejas, glabela (entre los ojos)',
+opts:['Entrecejo — zona central entre las cejas, glabela (entre los ojos)',
+      'Coronilla — punto más alto de la cabeza',
+      'Lateral de la cabeza — zona temporal sobre la sien',
+      'Frente alta — por encima de la línea del cabello'],
     eu_opts:['Bekain artea — bekain arteko zona zentrala, glabela','Koroila — buruaren puntu altuena','Alboko hipokondrioa — saihets-hezur flotagarrien azpian','Kopeta goikoa — ilerraren gainean']
   },
 ];
