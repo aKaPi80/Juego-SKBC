@@ -1908,6 +1908,60 @@ async function getOnlineKeimyakuForUser() {
 
   return points.filter(p => gradeOrder(p.grade) <= userOrder);
 }
+async function dbGetGakkaQuestions(category = null) {
+  const filter = category ? `&category=eq.${encodeURIComponent(category)}` : '';
+
+  const rows = await sbFetch(
+    `/gakka_questions?select=code,category,grade,question_es,question_eu,explanation_es,explanation_eu,gakka_options(option_es,option_eu,is_correct)&active=eq.true${filter}`
+  ) || [];
+
+  return rows.map(q => {
+    const options = q.gakka_options || [];
+    const correct = options.find(o => o.is_correct);
+
+    return {
+      q: LANG === 'eu' && q.question_eu ? q.question_eu : q.question_es,
+      a: LANG === 'eu' && correct?.option_eu ? correct.option_eu : correct?.option_es,
+      opts: options.map(o => LANG === 'eu' && o.option_eu ? o.option_eu : o.option_es),
+      explain: LANG === 'eu' && q.explanation_eu ? q.explanation_eu : q.explanation_es,
+      grade: q.grade,
+      category: q.category
+    };
+  }).filter(q => q.a && q.opts.length >= 2);
+}
+
+async function getOnlineGakkaForUser(category = null) {
+  const questions = await dbGetGakkaQuestions(category);
+  const userOrder = gradeOrder(currentUser.grade);
+
+  return questions.filter(q =>
+    !q.grade || gradeOrder(q.grade) <= userOrder
+  );
+}
+async function setupOnlineMCQ(category, fallbackPool, limit = 12) {
+  document.getElementById('game-area').innerHTML = `
+    <div class="question-card fade-in" style="text-align:center;">
+      <div class="spinner"></div>
+      <div style="color:rgba(245,237,224,0.6);font-size:15px;">
+        Cargando preguntas...
+      </div>
+    </div>
+  `;
+
+  try {
+    const online = await getOnlineGakkaForUser(category);
+    const pool = online.length ? online : getQuestionsForGrade(fallbackPool);
+
+    if (!pool.length) {
+      throw new Error('No hay preguntas disponibles.');
+    }
+
+    setupMCQ(shuffle(pool).slice(0, limit));
+  } catch (e) {
+    console.error(e);
+    setupMCQ(shuffle(getQuestionsForGrade(fallbackPool)).slice(0, limit));
+  }
+}
 
 async function dbGetKenshiById(id) {
   const rows = await sbFetch(`/kenshi?id=eq.${id}&limit=1`);
@@ -2791,9 +2845,9 @@ function startGame(gameId) {
   switch(gameId) {
     case 'construye-tecnica': setupConstruyeTecnica(); break;
     case 'camino-examen': setupCaminoExamen(); break;
-    case 'quiz-filosofia': setupMCQ(shuffle(getQuestionsForGrade([...Q_FILOSOFIA, ...Q_FILOSOFIA_EXTRA])).slice(0,12)); break;
-    case 'quiz-tecnicas':  setupQuizTecnicasOnline(); break;
-    case 'quiz-historia':  setupMCQ(shuffle(getQuestionsForGrade([...Q_HISTORIA, ...Q_HISTORIA_EXTRA, ...Q_SKBC])).slice(0,10)); break;
+    case 'quiz-filosofia': setupOnlineMCQ('philosophy', [...Q_FILOSOFIA, ...Q_FILOSOFIA_EXTRA], 12); break;
+    case 'quiz-tecnicas': setupQuizTecnicasOnline(); break;
+    case 'quiz-historia': setupOnlineMCQ('history', [...Q_HISTORIA, ...Q_HISTORIA_EXTRA, ...Q_SKBC], 10); break;
     case 'quiz-keimyaku':  setupKeimyakuSimple(); break;
     case 'quiz-gakka':     setupExamenGrado(); break;
     case 'match-jp-es':    setupMatch(); break;
@@ -4454,42 +4508,43 @@ function nextKeimyakuSimple() {
 }
 
 // ─── EXAMEN DE GRADO ───
-function setupExamenGrado() {
-  // Target: one grade above current
-  const gradeKeys = Object.keys(GRADES);
-  const currentIdx = gradeKeys.indexOf(currentUser.grade);
-  const targetGrade = gradeKeys[Math.min(currentIdx + 1, gradeKeys.length - 1)];
-  const targetOrder = gradeOrder(targetGrade);
-  const currentOrder = gradeOrder(currentUser.grade);
-
-  // Questions specifically for the target grade (between current and target)
-  const allPool = [...Q_FILOSOFIA, ...Q_FILOSOFIA_EXTRA, ...Q_TECNICAS, ...Q_TECNICAS_EXTRA, ...Q_KEIMYAKU, ...Q_DAN_GAKKA];
-  const targetPool = allPool.filter(q => {
-    const qOrder = gradeOrder(q.grade || '5kyu');
-    return qOrder <= targetOrder;
-  });
-
-  const pool = shuffle(targetPool).slice(0, 15);
-  gameState.questions = pool;
-  gameState.total = pool.length;
-  gameState.current = 0;
-  gameState.score = 0;
-  gameState.targetGrade = targetGrade;
-
-  // Show intro
+async function setupExamenGrado() {
   document.getElementById('game-area').innerHTML = `
-    <div class="question-card fade-in" style="text-align:center; padding:48px 32px;">
-      <div style="font-family:'Noto Serif JP',serif; font-size:48px; color:var(--gold); margin-bottom:16px;">試験</div>
-      <div style="font-family:'Cinzel',serif; font-size:20px; color:var(--gold); margin-bottom:8px;">${t('exam_title')}</div>
-      <div style="font-size:16px; color:rgba(245,237,224,0.6); margin-bottom:8px;">${t('exam_target')} <strong style="color:var(--gold);">${GRADES[targetGrade]?.label || targetGrade}</strong></div>
-      <div style="font-size:14px; color:rgba(245,237,224,0.4); margin-bottom:32px;">${t('exam_desc')}</div>
-      <button class="btn gold" style="max-width:220px;" onclick="renderMCQ()">${t('exam_start')}</button>
+    <div class="question-card fade-in" style="text-align:center;">
+      <div class="spinner"></div>
+      <div style="color:rgba(245,237,224,0.6);font-size:15px;">
+        Preparando simulacro de examen...
+      </div>
     </div>
   `;
 
-  // Override renderMCQ to use gameState already set
-  setTimeout(() => {}, 0);
+  try {
+    const online = await getOnlineGakkaForUser(null);
+    const allPool = online.length
+      ? online
+      : [...Q_FILOSOFIA, ...Q_FILOSOFIA_EXTRA, ...Q_TECNICAS, ...Q_TECNICAS_EXTRA, ...Q_KEIMYAKU, ...Q_DAN_GAKKA];
+
+    const pool = shuffle(allPool).slice(0, 15);
+
+    gameState.questions = pool;
+    gameState.total = pool.length;
+    gameState.current = 0;
+    gameState.score = 0;
+
+    document.getElementById('game-area').innerHTML = `
+      <div class="question-card fade-in" style="text-align:center; padding:48px 32px;">
+        <div style="font-family:'Noto Serif JP',serif; font-size:48px; color:var(--gold); margin-bottom:16px;">試験</div>
+        <div style="font-family:'Cinzel',serif; font-size:20px; color:var(--gold); margin-bottom:8px;">${t('exam_title')}</div>
+        <div style="font-size:14px; color:rgba(245,237,224,0.4); margin-bottom:32px;">${t('exam_desc')}</div>
+        <button class="btn gold" style="max-width:220px;" onclick="renderMCQ()">${t('exam_start')}</button>
+      </div>
+    `;
+  } catch (e) {
+    console.error(e);
+    setupMCQ(shuffle(getQuestionsForGrade([...Q_FILOSOFIA, ...Q_TECNICAS, ...Q_KEIMYAKU])).slice(0, 15));
+  }
 }
+
 function setupCaminoExamen() {
   const gradeKeys = Object.keys(GRADES);
   const currentIdx = gradeKeys.indexOf(currentUser.grade);
