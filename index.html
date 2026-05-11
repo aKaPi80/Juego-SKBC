@@ -1029,11 +1029,12 @@ background: repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(
     <div class="input-group">
       <label data-i18n="reg_grade">Tu grado actual</label>
       <select id="reg-grade">
-        <option value="5kyu">5º Kyu · Blanco/Amarillo</option>
-        <option value="4kyu">4º Kyu · Amarillo/Naranja</option>
-        <option value="3kyu">3º Kyu · Naranja/Verde</option>
-        <option value="2kyu">2º Kyu · Verde/Azul</option>
-        <option value="1kyu">1º Kyu · Azul/Marrón</option>
+        <option value="minarai">Minarai · Blanco</option>
+        <option value="5kyu">5º Kyu · Amarillo</option>
+        <option value="4kyu">4º Kyu · Naranja</option>
+        <option value="3kyu">3º Kyu · Verde</option>
+        <option value="2kyu">2º Kyu · Azul</option>
+        <option value="1kyu">1º Kyu · Marrón</option>
         <option value="shodan">Shodan · 初段 (1º Dan)</option>
         <option value="nidan">Nidan · 二段 (2º Dan)</option>
         <option value="sandan">Sandan · 三段 (3º Dan)</option>
@@ -2323,16 +2324,17 @@ function exitGame() {
 // GRADE SYSTEM
 // ═══════════════════════════════════════════════════════════════════════
 const GRADES = {
-  '5kyu':  { label: '5º Kyu · Amarillo', belt: 'belt-5kyu', order: 1 },
-  '4kyu':  { label: '4º Kyu · Naranja', belt: 'belt-4kyu', order: 2 },
-  '3kyu':  { label: '3º Kyu · Verde', belt: 'belt-3kyu', order: 3 },
-  '2kyu':  { label: '2º Kyu · Azul', belt: 'belt-2kyu', order: 4 },
-  '1kyu':  { label: '1º Kyu · Marrón', belt: 'belt-1kyu', order: 5 },
-  'shodan':{ label: 'Shodan · 初段 (1º Dan)', belt: 'belt-shodan', order: 6 },
-  'nidan': { label: 'Nidan · 二段 (2º Dan)', belt: 'belt-nidan', order: 7 },
-  'sandan':{ label: 'Sandan · 三段 (3º Dan)', belt: 'belt-sandan', order: 8 },
-  'yondan':{ label: 'Yondan · 四段 (4º Dan)', belt: 'belt-yondan', order: 9 },
-  'godan': { label: 'Godan · 五段 (5º Dan)', belt: 'belt-godan', order: 10 }
+  'Minarai':  { label: 'Minarai · Blanco', belt: 'belt-Minarai', order: 1 }
+  '5kyu':  { label: '5º Kyu · Amarillo', belt: 'belt-5kyu', order: 2 },
+  '4kyu':  { label: '4º Kyu · Naranja', belt: 'belt-4kyu', order: 3 },
+  '3kyu':  { label: '3º Kyu · Verde', belt: 'belt-3kyu', order: 4 },
+  '2kyu':  { label: '2º Kyu · Azul', belt: 'belt-2kyu', order: 5 },
+  '1kyu':  { label: '1º Kyu · Marrón', belt: 'belt-1kyu', order: 6 },
+  'shodan':{ label: 'Shodan · 初段 (1º Dan)', belt: 'belt-shodan', order: 7 },
+  'nidan': { label: 'Nidan · 二段 (2º Dan)', belt: 'belt-nidan', order: 8 },
+  'sandan':{ label: 'Sandan · 三段 (3º Dan)', belt: 'belt-sandan', order: 9 },
+  'yondan':{ label: 'Yondan · 四段 (4º Dan)', belt: 'belt-yondan', order: 10 },
+  'godan': { label: 'Godan · 五段 (5º Dan)', belt: 'belt-godan', order: 11 }
 };
 
 function gradeOrder(g) { return (GRADES[g] || {order:0}).order; }
