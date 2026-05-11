@@ -2226,6 +2226,7 @@ async function renderMain() {
 function getAvailableGames() {
   const order = gradeOrder(currentUser.grade);
   const games = [
+    { id: 'camino-examen', icon: '🥋', name: 'Camino al Examen', desc: 'Supera pruebas de técnica, keimyaku, gakka y vocabulario para preparar tu siguiente grado.', tag: 'Grading Quest' },
     { id: 'quiz-filosofia',   icon: '⚡', name: t('game_filosofia_name'), desc: t('game_filosofia_desc'), tag: t('game_filosofia_tag') },
     { id: 'quiz-tecnicas',    icon: '🥋', name: t('game_tecnicas_name'), desc: t('game_tecnicas_desc'), tag: t('game_tecnicas_tag') },
     { id: 'match-jp-es',      icon: '🔤', name: t('game_vocab_name'), desc: t('game_vocab_desc'), tag: t('game_vocab_tag') },
@@ -2561,6 +2562,7 @@ function startGame(gameId) {
   gameState = { id: gameId, score: 0, total: 0, current: 0, questions: [], answered: false };
 
   const titleMap = {
+    'camino-examen': '🥋 Camino al Examen',
     'quiz-filosofia': '⚡ Supervivencia',
     'quiz-tecnicas': 'Técnicas por Grado',
     'match-jp-es': 'Vocabulario Japonés',
@@ -2575,6 +2577,7 @@ function startGame(gameId) {
   document.getElementById('game-title-display').textContent = titleMap[gameId] || gameId;
 
   switch(gameId) {
+    case 'camino-examen': setupCaminoExamen(); break;
     case 'quiz-filosofia': setupMCQ(shuffle(getQuestionsForGrade([...Q_FILOSOFIA, ...Q_FILOSOFIA_EXTRA])).slice(0,12)); break;
     case 'quiz-tecnicas':  setupMCQ(shuffle(getQuestionsForGrade([...Q_TECNICAS, ...Q_TECNICAS_EXTRA])).slice(0,12)); break;
     case 'quiz-historia':  setupMCQ(shuffle(getQuestionsForGrade([...Q_HISTORIA, ...Q_HISTORIA_EXTRA, ...Q_SKBC])).slice(0,10)); break;
@@ -4074,6 +4077,49 @@ function setupExamenGrado() {
 
   // Override renderMCQ to use gameState already set
   setTimeout(() => {}, 0);
+}
+function setupCaminoExamen() {
+  const gradeKeys = Object.keys(GRADES);
+  const currentIdx = gradeKeys.indexOf(currentUser.grade);
+  const targetGrade = gradeKeys[Math.min(currentIdx + 1, gradeKeys.length - 1)];
+  const targetOrder = gradeOrder(targetGrade);
+
+  const tecnicaPool = [...Q_TECNICAS, ...Q_TECNICAS_EXTRA].filter(q => gradeOrder(q.grade || '5kyu') <= targetOrder);
+  const filosofiaPool = [...Q_FILOSOFIA, ...Q_FILOSOFIA_EXTRA, ...Q_DAN_GAKKA].filter(q => gradeOrder(q.grade || '5kyu') <= targetOrder);
+  const historiaPool = [...Q_HISTORIA, ...Q_HISTORIA_EXTRA, ...Q_SKBC].filter(q => gradeOrder(q.grade || '5kyu') <= targetOrder);
+  const keimyakuPool = Q_KEIMYAKU.filter(q => gradeOrder(q.grade || '5kyu') <= targetOrder);
+
+  const examQuestions = [
+    ...shuffle(tecnicaPool).slice(0, 4),
+    ...shuffle(filosofiaPool).slice(0, 4),
+    ...shuffle(historiaPool).slice(0, 2),
+    ...shuffle(keimyakuPool).slice(0, 2)
+  ];
+
+  gameState.questions = shuffle(examQuestions);
+  gameState.total = gameState.questions.length;
+  gameState.current = 0;
+  gameState.score = 0;
+  gameState.targetGrade = targetGrade;
+  gameState.id = 'camino-examen';
+
+  document.getElementById('game-area').innerHTML = `
+    <div class="question-card fade-in" style="text-align:center; padding:42px 28px;">
+      <div style="font-size:56px; margin-bottom:12px;">🥋</div>
+      <div style="font-family:'Cinzel',serif; font-size:22px; color:var(--gold); margin-bottom:8px;">
+        Camino al Examen
+      </div>
+      <div style="font-size:16px; color:rgba(245,237,224,0.7); margin-bottom:10px;">
+        Objetivo: <strong style="color:var(--gold);">${GRADES[targetGrade]?.label || targetGrade}</strong>
+      </div>
+      <div style="font-size:14px; color:rgba(245,237,224,0.45); line-height:1.6; margin-bottom:28px;">
+        12 preguntas mezcladas de técnica, filosofía, historia y keimyaku. Necesitas 80% para considerar el reto superado.
+      </div>
+      <button class="btn gold" style="max-width:240px;" onclick="renderMCQ()">
+        Empezar camino →
+      </button>
+    </div>
+  `;
 }
 
 // ─── PROGRESS & RESULTS ───
