@@ -1886,6 +1886,28 @@ async function dbGetKenshi(username) {
   const rows = await sbFetch(`/kenshi?username=eq.${encodeURIComponent(username)}&limit=1`);
   return rows && rows[0] ? rows[0] : null;
 }
+async function dbGetKeimyakuPoints() {
+  const rows = await sbFetch(
+    '/keimyaku_points?select=name,kanji,grade,body_zone_es,body_zone_eu,hint&active=eq.true&order=grade.asc'
+  ) || [];
+
+  return rows.map(r => ({
+    nombre: r.name,
+    kanji: r.kanji,
+    grade: r.grade,
+    zona: LANG === 'eu' && r.body_zone_eu ? r.body_zone_eu : r.body_zone_es,
+    zonaEs: r.body_zone_es,
+    zonaEu: r.body_zone_eu,
+    hint: r.hint
+  }));
+}
+
+async function getOnlineKeimyakuForUser() {
+  const points = await dbGetKeimyakuPoints();
+  const userOrder = gradeOrder(currentUser.grade);
+
+  return points.filter(p => gradeOrder(p.grade) <= userOrder);
+}
 
 async function dbGetKenshiById(id) {
   const rows = await sbFetch(`/kenshi?id=eq.${id}&limit=1`);
@@ -4321,30 +4343,68 @@ opts:['Entrecejo — zona central entre las cejas, glabela (entre los ojos)',
 ];
   
 
-function setupKeimyakuSimple() {
-  const userOrder = gradeOrder(currentUser.grade);
-  // Filter by grade
-  const kyuMap = {'5º Kyu':1,'4º Kyu':2,'3º Kyu':3,'2º Kyu':4,'1º Kyu':5,'Shodan':6,'Nidan':7,'Sandan':8,'Yondan':9,'Godan':10};
-  const pool = shuffle(KEIMYAKU_SIMPLE.filter(k => (kyuMap[k.kyu]||1) <= userOrder)).slice(0, 10);
-  gameState.questions = pool;
-  gameState.total = pool.length;
-  gameState.current = 0;
-  gameState.score = 0;
-  renderKeimyakuSimple();
+async function setupKeimyakuSimple() {
+  document.getElementById('game-area').innerHTML = `
+    <div class="question-card fade-in" style="text-align:center;">
+      <div class="spinner"></div>
+      <div style="color:rgba(245,237,224,0.6);font-size:15px;">
+        Cargando keimyaku...
+      </div>
+    </div>
+  `;
+
+  try {
+    const poolAll = await getOnlineKeimyakuForUser();
+
+    if (poolAll.length < 4) {
+      throw new Error('No hay suficientes puntos keimyaku.');
+    }
+
+    const pool = shuffle(poolAll).slice(0, 10);
+
+    gameState.questions = pool.map(point => {
+      const wrong = shuffle(
+        poolAll
+          .filter(p => p.nombre !== point.nombre)
+          .map(p => p.zona)
+      ).slice(0, 3);
+
+      return {
+        ...point,
+        opts: shuffle([point.zona, ...wrong])
+      };
+    });
+
+    gameState.total = gameState.questions.length;
+    gameState.current = 0;
+    gameState.score = 0;
+    gameState.answered = false;
+
+    renderKeimyakuSimple();
+  } catch (e) {
+    console.error(e);
+    document.getElementById('game-area').innerHTML = `
+      <div class="question-card fade-in" style="text-align:center;">
+        <div class="question-text">No se pudo cargar Keimyaku.</div>
+        <button class="btn secondary" style="max-width:220px;margin-top:20px;" onclick="exitGame()">
+          ${t('back_dojo')}
+        </button>
+      </div>
+    `;
+  }
 }
+
 
 function renderKeimyakuSimple() {
   const q = gameState.questions[gameState.current];
   if (!q) { showResults(); return; }
   updateProgress();
   // Use EU options if available and EU language selected
-  const zonaText = (LANG === 'eu' && q.eu_zona) ? q.eu_zona : q.zona;
-  const optsSource = (LANG === 'eu' && q.eu_opts) ? q.eu_opts : q.opts;
-  // Replace the ES correct answer with EU equivalent in opts
-  const opts = shuffle([...optsSource]);
+  const zonaText = q.zona;
+  const opts = shuffle([...q.opts]);
   gameState.correctIndex = opts.indexOf(zonaText);
-  // Store for feedback
   gameState.currentZona = zonaText;
+
 
   document.getElementById('game-area').innerHTML = `
     <div class="question-card fade-in">
