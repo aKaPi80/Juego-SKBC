@@ -5665,7 +5665,10 @@ function generateSenseiSql() {
     const wrong3 = sqlEscape(document.getElementById('gen-wrong3').value);
     const explain = sqlEscape(document.getElementById('gen-explain').value);
 
-    out.value = `with q as (
+    out.value = `do $$
+declare
+  v_question_id uuid;
+begin
   insert into public.gakka_questions (code, category, grade, question_es, explanation_es, active)
   values ('${code}', '${category}', '${grade}', '${question}', '${explain}', true)
   on conflict (code) do update set
@@ -5674,16 +5677,19 @@ function generateSenseiSql() {
     question_es = excluded.question_es,
     explanation_es = excluded.explanation_es,
     active = true
-  returning id
-),
-deleted as (
-  delete from public.gakka_options where question_id in (select id from q)
-)
-insert into public.gakka_options (question_id, option_es, is_correct)
-select id, '${correct}', true from q
-union all select id, '${wrong1}', false from q
-union all select id, '${wrong2}', false from q
-union all select id, '${wrong3}', false from q;`;
+  returning id into v_question_id;
+
+  delete from public.gakka_options
+  where question_id = v_question_id;
+
+  insert into public.gakka_options (question_id, option_es, is_correct)
+  values
+    (v_question_id, '${correct}', true),
+    (v_question_id, '${wrong1}', false),
+    (v_question_id, '${wrong2}', false),
+    (v_question_id, '${wrong3}', false);
+end $$;`;
+
     return;
   }
 
@@ -5725,7 +5731,7 @@ do update set
     return;
   }
 
-    const name = sqlEscape(document.getElementById('gen-name').value);
+  const name = sqlEscape(document.getElementById('gen-name').value);
   const grade = sqlEscape(document.getElementById('gen-grade').value);
   const category = sqlEscape(document.getElementById('gen-category').value);
   const sourceDoc = sqlEscape(document.getElementById('gen-source').value);
