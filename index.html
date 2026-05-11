@@ -5188,7 +5188,7 @@ showResults = async function() {
 async function dbGetDojoLibrarySummary() {
   const [techniques, glossary, keimyaku, gakka] = await Promise.all([
     sbFetch('/techniques?select=id,name,grade,category,source_doc,active,technique_steps(step_order,step_text)&active=eq.true') || [],
-    sbFetch('/glossary_terms?select=id,jp,es,category,grade,active&active=eq.true') || [],
+    sbFetch('/glossary_terms?select=id,jp,es,eu,category,grade,active&active=eq.true') || [],
     sbFetch('/keimyaku_points?select=id,name,kanji,grade,body_zone_es,body_zone_eu,hint,active&active=eq.true') || [],
     sbFetch('/gakka_questions?select=id,code,category,grade,question_es,explanation_es,active,gakka_options(option_es,is_correct)&active=eq.true') || []
 
@@ -5635,6 +5635,58 @@ function fillGakkaGeneratorFromExisting() {
   document.getElementById('gen-wrong3').value = wrong[2]?.option_es || '';
   document.getElementById('gen-explain').value = question.explanation_es || '';
 }
+function getGlossaryLibraryRows() {
+  const rows = window._dojoLibraryCache?.glossary || [];
+
+  return rows
+    .slice()
+    .sort((a, b) => {
+      const ga = gradeOrder(a.grade);
+      const gb = gradeOrder(b.grade);
+      if (ga !== gb) return ga - gb;
+      return (a.jp || '').localeCompare(b.jp || '');
+    });
+}
+
+function renderGlossaryPickerHtml() {
+  const terms = getGlossaryLibraryRows();
+
+  if (!terms.length) {
+    return `
+      <div style="padding:12px;border:1px solid rgba(184,136,42,0.2);color:rgba(245,237,224,0.6);">
+        Primero abre Biblioteca para cargar el glosario.
+      </div>
+    `;
+  }
+
+  return `
+    <div class="input-group">
+      <label>Término existente</label>
+      <select id="gen-existing-glossary" onchange="fillGlossaryGeneratorFromExisting()">
+        <option value="">Selecciona un término...</option>
+        ${terms.map(term => `
+          <option value="${term.id}">
+            ${term.jp} → ${term.es} · ${term.category || 'general'} · ${term.grade || ''}
+          </option>
+        `).join('')}
+      </select>
+    </div>
+  `;
+}
+
+function fillGlossaryGeneratorFromExisting() {
+  const id = document.getElementById('gen-existing-glossary')?.value;
+  if (!id) return;
+
+  const term = getGlossaryLibraryRows().find(t => t.id === id);
+  if (!term) return;
+
+  document.getElementById('gen-jp').value = term.jp || '';
+  document.getElementById('gen-es').value = term.es || '';
+  document.getElementById('gen-eu').value = term.eu || '';
+  document.getElementById('gen-category').value = term.category || '';
+  document.getElementById('gen-grade').value = term.grade || '5kyu';
+}
 
 function showSenseiSqlGenerator() {
   const panel = document.getElementById('dojo-library-panel');
@@ -5723,15 +5775,28 @@ function renderSqlGeneratorForm() {
 
 
   if (type === 'glossary') {
-    form.innerHTML = `
-      <div class="input-group"><label>Japonés</label><input id="gen-jp" placeholder="ej. Gassho Rei"></div>
-      <div class="input-group"><label>Español</label><input id="gen-es" placeholder="Significado en español"></div>
-      <div class="input-group"><label>Euskera</label><input id="gen-eu" placeholder="Opcional"></div>
-      <div class="input-group"><label>Categoría</label><input id="gen-category" placeholder="tecnica, dojo, filosofia, keimyaku..."></div>
-      <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
-    `;
-    return;
-  }
+  const currentMode = document.getElementById('gen-glossary-mode')?.value || 'new';
+
+  form.innerHTML = `
+    <div class="input-group">
+      <label>Modo</label>
+      <select id="gen-glossary-mode" onchange="renderSqlGeneratorForm()">
+        <option value="new" ${currentMode === 'new' ? 'selected' : ''}>Nuevo término</option>
+        <option value="edit" ${currentMode === 'edit' ? 'selected' : ''}>Modificar término existente</option>
+      </select>
+    </div>
+
+    ${currentMode === 'edit' ? renderGlossaryPickerHtml() : ''}
+
+    <div class="input-group"><label>Japonés</label><input id="gen-jp" placeholder="ej. Gassho Rei"></div>
+    <div class="input-group"><label>Español</label><input id="gen-es" placeholder="Significado en español"></div>
+    <div class="input-group"><label>Euskera</label><input id="gen-eu" placeholder="Opcional"></div>
+    <div class="input-group"><label>Categoría</label><input id="gen-category" placeholder="tecnica, dojo, filosofia, keimyaku..."></div>
+    <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
+  `;
+  return;
+}
+
 
   if (type === 'keimyaku') {
   const currentMode = document.getElementById('gen-keimyaku-mode')?.value || 'new';
