@@ -1213,31 +1213,34 @@ function SK_renderBanner() {
 }
 
 // ══════════════════════════════════════════════════════
-// ZEN MUSIC — Web Audio API
+// TAIKO MUSIC — Web Audio API
 // ══════════════════════════════════════════════════════
 let _audioCtx = null;
 let _musicNodes = [];
 let _musicOn = false;
+let _musicTimer = null;
 
-function SK_playZen() {
-  if (_musicOn) return;
-  if (localStorage.getItem('sk_music') === 'off') return;
+async function SK_playZen() {
+  if (_musicOn) return true;
 
   try {
     _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    if (_audioCtx.state === 'suspended') _audioCtx.resume();
 
-    _musicOn = true;
+    if (_audioCtx.state === 'suspended') {
+      await _audioCtx.resume();
+    }
+
     const ctx = _audioCtx;
+    _musicOn = true;
 
     const master = ctx.createGain();
-    master.gain.value = 0.18;
+    master.gain.value = 0.22;
     master.connect(ctx.destination);
 
     _musicNodes = [master];
 
     let step = 0;
-    const tempo = 92;
+    const tempo = 88;
     const intervalMs = 60000 / tempo / 2;
 
     function taikoHit(time, type = 'deep') {
@@ -1246,34 +1249,34 @@ function SK_playZen() {
       const filter = ctx.createBiquadFilter();
 
       osc.type = 'sine';
+      filter.type = 'lowpass';
 
       if (type === 'deep') {
-        osc.frequency.setValueAtTime(95, time);
-        osc.frequency.exponentialRampToValueAtTime(45, time + 0.18);
-        gain.gain.setValueAtTime(0.9, time);
-        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.32);
+        osc.frequency.setValueAtTime(110, time);
+        osc.frequency.exponentialRampToValueAtTime(42, time + 0.22);
+        gain.gain.setValueAtTime(0.95, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.34);
         filter.frequency.value = 180;
       } else if (type === 'mid') {
-        osc.frequency.setValueAtTime(150, time);
-        osc.frequency.exponentialRampToValueAtTime(70, time + 0.12);
-        gain.gain.setValueAtTime(0.45, time);
-        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.18);
-        filter.frequency.value = 260;
+        osc.frequency.setValueAtTime(170, time);
+        osc.frequency.exponentialRampToValueAtTime(70, time + 0.14);
+        gain.gain.setValueAtTime(0.55, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.22);
+        filter.frequency.value = 300;
       } else {
-        osc.frequency.setValueAtTime(260, time);
-        osc.frequency.exponentialRampToValueAtTime(120, time + 0.08);
-        gain.gain.setValueAtTime(0.22, time);
+        osc.frequency.setValueAtTime(320, time);
+        osc.frequency.exponentialRampToValueAtTime(150, time + 0.08);
+        gain.gain.setValueAtTime(0.25, time);
         gain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
-        filter.frequency.value = 500;
+        filter.frequency.value = 650;
       }
 
-      filter.type = 'lowpass';
       osc.connect(filter);
       filter.connect(gain);
       gain.connect(master);
 
       osc.start(time);
-      osc.stop(time + 0.35);
+      osc.stop(time + 0.4);
 
       _musicNodes.push(osc, gain, filter);
     }
@@ -1281,7 +1284,6 @@ function SK_playZen() {
     function schedulePattern() {
       if (!_musicOn) return;
 
-      const now = ctx.currentTime + 0.03;
       const pattern = [
         'deep', null, 'mid', null,
         'deep', 'rim', 'mid', null,
@@ -1290,19 +1292,58 @@ function SK_playZen() {
       ];
 
       const hit = pattern[step % pattern.length];
-      if (hit) taikoHit(now, hit);
+      if (hit) taikoHit(ctx.currentTime + 0.02, hit);
 
       step++;
-      const timer = setTimeout(schedulePattern, intervalMs);
-      _musicNodes.push({ disconnect(){ clearTimeout(timer); } });
+      _musicTimer = setTimeout(schedulePattern, intervalMs);
     }
 
     schedulePattern();
     updateMusicBtn();
+    return true;
   } catch (e) {
-    console.error(e);
+    console.error('No se pudo iniciar la musica:', e);
     _musicOn = false;
+    updateMusicBtn();
+    return false;
   }
+}
+
+function SK_stopZen() {
+  _musicOn = false;
+
+  if (_musicTimer) {
+    clearTimeout(_musicTimer);
+    _musicTimer = null;
+  }
+
+  _musicNodes.forEach(n => {
+    try {
+      if (n.stop) n.stop();
+      if (n.disconnect) n.disconnect();
+    } catch (e) {}
+  });
+
+  _musicNodes = [];
+  updateMusicBtn();
+}
+
+async function SK_toggleMusic() {
+  if (_musicOn) {
+    SK_stopZen();
+    localStorage.setItem('sk_music', 'off');
+    return;
+  }
+
+  localStorage.removeItem('sk_music');
+  await SK_playZen();
+}
+
+function updateMusicBtn() {
+  document.querySelectorAll('.music-btn').forEach(btn => {
+    btn.textContent = _musicOn ? '🔇' : '🎵';
+    btn.title = _musicOn ? 'Apagar musica' : 'Encender musica';
+  });
 }
 
 
@@ -2305,7 +2346,7 @@ async function renderMain() {
 
   document.getElementById('welcome-name').textContent = u.name;
   // Start music on first click after login
-  document.addEventListener("click", function m(){ SK_playZen(); document.removeEventListener("click",m); }, {once:true});
+  //document.addEventListener("click", function m(){ SK_playZen(); document.removeEventListener("click",m); }, {once:true});
   document.getElementById('welcome-grade').textContent = g.label;
   document.getElementById('welcome-belt').className = 'belt-indicator ' + g.belt;
   document.getElementById('top-username').textContent = u.username.toUpperCase();
