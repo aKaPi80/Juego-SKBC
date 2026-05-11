@@ -1967,6 +1967,32 @@ async function dbGetTechniqueBuilder() {
       .map(s => s.step_text)
   })).filter(t => t.pasos.length >= 2);
 }
+function buildTechniqueDescription(tecnica) {
+  return tecnica.pasos
+    .map((paso, i) => `${i + 1}. ${paso}`)
+    .join(' ');
+}
+
+function getTechniqueOptions(correctName, allTechniques) {
+  const wrong = shuffle(
+    allTechniques
+      .map(t => t.nombre)
+      .filter(name => name !== correctName)
+  ).slice(0, 3);
+
+  return shuffle([correctName, ...wrong]);
+}
+
+async function getOnlineTechniquesForUser() {
+  const onlineTechniques = await dbGetTechniqueBuilder();
+  const userOrder = gradeOrder(currentUser.grade);
+
+  return onlineTechniques.filter(t =>
+    gradeOrder(t.grade) <= userOrder &&
+    t.pasos &&
+    t.pasos.length >= 2
+  );
+}
 
 // ─── Sensei credentials ───
 const SENSEI = { user: 'aKaPi', pass: '6577011656' };
@@ -2719,7 +2745,7 @@ function startGame(gameId) {
     case 'construye-tecnica': setupConstruyeTecnica(); break;
     case 'camino-examen': setupCaminoExamen(); break;
     case 'quiz-filosofia': setupMCQ(shuffle(getQuestionsForGrade([...Q_FILOSOFIA, ...Q_FILOSOFIA_EXTRA])).slice(0,12)); break;
-    case 'quiz-tecnicas':  setupMCQ(shuffle(getQuestionsForGrade([...Q_TECNICAS, ...Q_TECNICAS_EXTRA])).slice(0,12)); break;
+    case 'quiz-tecnicas':  setupQuizTecnicasOnline(); break;
     case 'quiz-historia':  setupMCQ(shuffle(getQuestionsForGrade([...Q_HISTORIA, ...Q_HISTORIA_EXTRA, ...Q_SKBC])).slice(0,10)); break;
     case 'quiz-keimyaku':  setupKeimyakuSimple(); break;
     case 'quiz-gakka':     setupExamenGrado(); break;
@@ -3769,20 +3795,131 @@ const TECNICAS_DESCRIPCION = [
   { desc: 'D adopta midare gamae. Ante furi zuki de A, gira 180 grados y golpea la nuca del atacante con gyaku zuki.', nombre: 'Kaishin zuki', opts: ['Kaishin zuki', 'Kusshin zuki', 'Han tenshin zuki', 'Gyaku tenshin zuki'], grade: '2kyu' },
 ];
 
-function setupNombraTecnica() {
-  const userOrder = gradeOrder(currentUser.grade);
-  const eligible = TECNICAS_DESCRIPCION.filter(t => gradeOrder(t.grade) <= userOrder);
-  const seenNow = window._shownQuestions || new Set();
-  const unseen = shuffle(eligible.filter(t => !seenNow.has(t.nombre)));
-  const seen = shuffle(eligible.filter(t => seenNow.has(t.nombre)));
-  const pool = [...unseen, ...seen].slice(0, 10);
-  pool.forEach(t => { if(window._shownQuestions) window._shownQuestions.add(t.nombre); });
-  gameState.questions = pool;
-  gameState.total = pool.length;
-  gameState.current = 0;
-  gameState.score = 0;
-  renderNombraTecnica();
+async function setupNombraTecnica() {
+  document.getElementById('game-area').innerHTML = `
+    <div class="question-card fade-in" style="text-align:center;">
+      <div class="spinner"></div>
+      <div style="color:rgba(245,237,224,0.6);font-size:15px;">
+        Cargando técnicas del syllabus...
+      </div>
+    </div>
+  `;
+
+  try {
+    const eligible = await getOnlineTechniquesForUser();
+
+    if (!eligible.length) {
+      throw new Error('No hay técnicas disponibles.');
+    }
+
+    const pool = shuffle(eligible).slice(0, 10).map(tecnica => ({
+      desc: buildTechniqueDescription(tecnica),
+      nombre: tecnica.nombre,
+      opts: getTechniqueOptions(tecnica.nombre, eligible),
+      grade: tecnica.grade
+    }));
+
+    gameState.questions = pool;
+    gameState.total = pool.length;
+    gameState.current = 0;
+    gameState.score = 0;
+    gameState.answered = false;
+
+    renderNombraTecnica();
+  } catch (e) {
+    console.error(e);
+    document.getElementById('game-area').innerHTML = `
+      <div class="question-card fade-in" style="text-align:center;">
+        <div class="question-text">No se pudieron cargar las técnicas.</div>
+        <button class="btn secondary" style="max-width:220px;margin-top:20px;" onclick="exitGame()">
+          ${t('back_dojo')}
+        </button>
+      </div>
+    `;
+  }
 }
+async function setupQuizTecnicasOnline() {
+  document.getElementById('game-area').innerHTML = `
+    <div class="question-card fade-in" style="text-align:center;">
+      <div class="spinner"></div>
+      <div style="color:rgba(245,237,224,0.6);font-size:15px;">
+        Preparando preguntas técnicas...
+      </div>
+    </div>
+  `;
+
+  try {
+    const eligible = await getOnlineTechniquesForUser();
+
+    if (!eligible.length) {
+      throw new Error('No hay técnicas disponibles.');
+    }
+
+    const categoryNames = {
+      goho: 'Goho',
+      juho: 'Juho',
+      technique: 'Técnica'
+    };
+
+    const gradeLabels = Object.keys(GRADES).map(g => GRADES[g].label);
+
+    const questions = shuffle(eligible).slice(0, 12).map(tecnica => {
+      const mode = Math.random();
+
+      if (mode < 0.45) {
+        return {
+          q: `Lee la secuencia. ¿Qué técnica es? ${buildTechniqueDescription(tecnica)}`,
+          a: tecnica.nombre,
+          opts: getTechniqueOptions(tecnica.nombre, eligible),
+          explain: `${tecnica.nombre} pertenece a ${GRADES[tecnica.grade]?.label || tecnica.grade}.`,
+          grade: tecnica.grade
+        };
+      }
+
+      if (mode < 0.75) {
+        const correctGrade = GRADES[tecnica.grade]?.label || tecnica.grade;
+        const wrongGrades = shuffle(gradeLabels.filter(g => g !== correctGrade)).slice(0, 3);
+
+        return {
+          q: `¿A qué grado pertenece ${tecnica.nombre}?`,
+          a: correctGrade,
+          opts: shuffle([correctGrade, ...wrongGrades]),
+          explain: `${tecnica.nombre} pertenece a ${correctGrade}.`,
+          grade: tecnica.grade
+        };
+      }
+
+      const correctCategory = categoryNames[tecnica.category] || tecnica.category || 'Técnica';
+
+      return {
+        q: `¿Qué tipo de técnica es ${tecnica.nombre}?`,
+        a: correctCategory,
+        opts: shuffle([correctCategory, 'Goho', 'Juho', 'Kata'].filter((v, i, arr) => arr.indexOf(v) === i)).slice(0, 4),
+        explain: `${tecnica.nombre} está clasificada como ${correctCategory}.`,
+        grade: tecnica.grade
+      };
+    });
+
+    gameState.questions = questions;
+    gameState.total = questions.length;
+    gameState.current = 0;
+    gameState.score = 0;
+    gameState.answered = false;
+
+    renderMCQ();
+  } catch (e) {
+    console.error(e);
+    document.getElementById('game-area').innerHTML = `
+      <div class="question-card fade-in" style="text-align:center;">
+        <div class="question-text">No se pudieron cargar las preguntas técnicas.</div>
+        <button class="btn secondary" style="max-width:220px;margin-top:20px;" onclick="exitGame()">
+          ${t('back_dojo')}
+        </button>
+      </div>
+    `;
+  }
+}
+
 
 function renderNombraTecnica() {
   const q = gameState.questions[gameState.current];
