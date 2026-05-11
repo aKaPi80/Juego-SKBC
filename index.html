@@ -5151,7 +5151,7 @@ showResults = async function() {
 
 async function dbGetDojoLibrarySummary() {
   const [techniques, glossary, keimyaku, gakka] = await Promise.all([
-    sbFetch('/techniques?select=id,name,grade,category,active&active=eq.true') || [],
+    sbFetch('/techniques?select=id,name,grade,category,source_doc,active,technique_steps(step_order,step_text)&active=eq.true') || [],
     sbFetch('/glossary_terms?select=id,jp,es,category,grade,active&active=eq.true') || [],
     sbFetch('/keimyaku_points?select=id,name,grade,body_zone_es,active&active=eq.true') || [],
     sbFetch('/gakka_questions?select=id,code,category,grade,question_es,active&active=eq.true') || []
@@ -5404,6 +5404,84 @@ function copyGeneratedSql() {
       notify('SQL copiado');
     });
 }
+function getTechniqueLibraryRows() {
+  const rows = window._dojoLibraryCache?.techniques || [];
+
+  return rows
+    .map(t => ({
+      ...t,
+      technique_steps: (t.technique_steps || [])
+        .sort((a, b) => a.step_order - b.step_order)
+    }))
+    .sort((a, b) => {
+      const ga = gradeOrder(a.grade);
+      const gb = gradeOrder(b.grade);
+      if (ga !== gb) return ga - gb;
+      return a.name.localeCompare(b.name);
+    });
+}
+
+function sourceSelectHtml(id, selected = 'Sensei manual entry') {
+  const sources = [
+    ['Sensei manual entry', 'Nueva entrada manual'],
+    ['BSKF kyu syllabus 2024', 'Syllabus kyu'],
+    ['BSKF dan syllabus 2024', 'Syllabus dan']
+  ];
+
+  return `
+    <select id="${id}">
+      ${sources.map(([value, label]) => `
+        <option value="${value}" ${value === selected ? 'selected' : ''}>${label}</option>
+      `).join('')}
+    </select>
+  `;
+}
+
+function renderTechniquePickerHtml() {
+  const techniques = getTechniqueLibraryRows();
+
+  if (!techniques.length) {
+    return `
+      <div style="padding:12px;border:1px solid rgba(184,136,42,0.2);color:rgba(245,237,224,0.6);">
+        Primero abre Biblioteca para cargar las técnicas.
+      </div>
+    `;
+  }
+
+  return `
+    <div class="input-group">
+      <label>Técnica existente</label>
+      <select id="gen-existing-technique" onchange="fillTechniqueGeneratorFromExisting()">
+        <option value="">Selecciona una técnica...</option>
+        ${techniques.map(t => `
+          <option value="${t.id}">
+            ${t.name} · ${t.grade} · ${t.source_doc || 'sin origen'}
+          </option>
+        `).join('')}
+      </select>
+    </div>
+  `;
+}
+
+function fillTechniqueGeneratorFromExisting() {
+  const id = document.getElementById('gen-existing-technique')?.value;
+  if (!id) return;
+
+  const technique = getTechniqueLibraryRows().find(t => t.id === id);
+  if (!technique) return;
+
+  document.getElementById('gen-name').value = technique.name || '';
+  document.getElementById('gen-grade').value = technique.grade || '5kyu';
+  document.getElementById('gen-category').value = technique.category || 'technique';
+  document.getElementById('gen-source').value = technique.source_doc || 'Sensei manual entry';
+
+  const steps = technique.technique_steps || [];
+
+  for (let i = 1; i <= 5; i++) {
+    const input = document.getElementById(`gen-step${i}`);
+    if (input) input.value = steps[i - 1]?.step_text || '';
+  }
+}
 
 function showSenseiSqlGenerator() {
   const panel = document.getElementById('dojo-library-panel');
@@ -5502,16 +5580,22 @@ function renderSqlGeneratorForm() {
   }
 
   form.innerHTML = `
+  <div class="input-group">
+    <label>Modo</label>
+    <select id="gen-technique-mode" onchange="renderSqlGeneratorForm()">
+      <option value="new">Nueva técnica</option>
+      <option value="edit">Modificar técnica existente</option>
+    </select>
+  </div>
+
+  ${document.getElementById('gen-technique-mode')?.value === 'edit' ? renderTechniquePickerHtml() : ''}
+
   <div class="input-group"><label>Nombre técnica</label><input id="gen-name" placeholder="ej. Uchi uke zuki (ura)"></div>
   <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
 
   <div class="input-group">
     <label>Origen</label>
-    <select id="gen-source">
-      <option value="Sensei manual entry">Nueva entrada manual</option>
-      <option value="BSKF kyu syllabus 2024">Corregir técnica del syllabus kyu</option>
-      <option value="BSKF dan syllabus 2024">Corregir técnica del syllabus dan</option>
-    </select>
+    ${sourceSelectHtml('gen-source')}
   </div>
 
   <div class="input-group"><label>Categoría</label>
@@ -5522,13 +5606,13 @@ function renderSqlGeneratorForm() {
     </select>
   </div>
 
-    <div class="input-group"><label>Paso 1</label><input id="gen-step1" placeholder="D adopta..."></div>
-    <div class="input-group"><label>Paso 2</label><input id="gen-step2" placeholder="A ataca..."></div>
-    <div class="input-group"><label>Paso 3</label><input id="gen-step3"></div>
-    <div class="input-group"><label>Paso 4</label><input id="gen-step4"></div>
-    <div class="input-group"><label>Paso 5</label><input id="gen-step5" placeholder="Opcional"></div>
-  `;
-}
+  <div class="input-group"><label>Paso 1</label><input id="gen-step1" placeholder="D adopta..."></div>
+  <div class="input-group"><label>Paso 2</label><input id="gen-step2" placeholder="A ataca..."></div>
+  <div class="input-group"><label>Paso 3</label><input id="gen-step3"></div>
+  <div class="input-group"><label>Paso 4</label><input id="gen-step4"></div>
+  <div class="input-group"><label>Paso 5</label><input id="gen-step5" placeholder="Opcional"></div>
+`;
+
 
 function generateSenseiSql() {
   const type = document.getElementById('sql-gen-type').value;
