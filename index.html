@@ -5265,6 +5265,19 @@ async function showDojoLibraryPanel() {
       </div>
 
       <div style="padding:20px;display:grid;gap:14px;max-width:900px;margin:0 auto;">
+              <div style="border:1px solid rgba(184,136,42,0.28);background:rgba(184,136,42,0.06);
+          border-radius:4px;padding:18px;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+          <div>
+            <div style="font-family:'Cinzel',serif;font-size:15px;color:var(--gold);letter-spacing:2px;">
+              Generador Sensei
+            </div>
+            <div style="font-size:13px;color:rgba(245,237,224,0.58);margin-top:6px;">
+              Crea SQL seguro para añadir preguntas, vocabulario, keimyaku o técnicas.
+            </div>
+          </div>
+          <button class="btn-sm" onclick="showSenseiSqlGenerator()">Crear</button>
+        </div>
+
         ${cards.map(card => `
           <div style="border:1px solid rgba(184,136,42,0.2);background:rgba(245,237,224,0.035);
             border-radius:4px;padding:18px;">
@@ -5352,6 +5365,217 @@ function showDojoLibraryList(type) {
 function closeDojoLibraryPanel() {
   const panel = document.getElementById('dojo-library-panel');
   if (panel) panel.style.display = 'none';
+}
+function sqlEscape(value) {
+  return String(value || '').replace(/'/g, "''");
+}
+
+function showSenseiSqlGenerator() {
+  const panel = document.getElementById('dojo-library-panel');
+  if (!panel) return;
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="position:sticky;top:0;background:#1a1410;z-index:10;
+      border-bottom:1px solid rgba(184,136,42,0.2);
+      padding:16px 20px;display:flex;align-items:center;gap:12px;">
+      <button class="btn-sm" onclick="showDojoLibraryPanel()">← Biblioteca</button>
+      <div style="font-family:'Cinzel',serif;font-size:13px;letter-spacing:3px;color:var(--gold);flex:1;text-align:center;">
+        GENERADOR SENSEI
+      </div>
+    </div>
+
+    <div style="padding:20px;max-width:760px;margin:0 auto;">
+      <div class="input-group">
+        <label>Tipo de contenido</label>
+        <select id="sql-gen-type" onchange="renderSqlGeneratorForm()">
+          <option value="gakka">Pregunta Gakka / Filosofía / Historia</option>
+          <option value="glossary">Glosario</option>
+          <option value="keimyaku">Keimyaku</option>
+          <option value="technique">Técnica con pasos</option>
+        </select>
+      </div>
+
+      <div id="sql-generator-form"></div>
+
+      <div style="margin-top:18px;">
+        <button class="btn gold" onclick="generateSenseiSql()">Generar SQL</button>
+      </div>
+
+      <textarea id="sql-generator-output" readonly
+        style="width:100%;min-height:220px;margin-top:18px;background:#111;border:1px solid rgba(184,136,42,0.25);
+        color:#f5ede0;padding:14px;font-family:Consolas,monospace;font-size:12px;line-height:1.45;border-radius:4px;"></textarea>
+    </div>
+  `;
+
+  renderSqlGeneratorForm();
+}
+
+function renderSqlGeneratorForm() {
+  const type = document.getElementById('sql-gen-type').value;
+  const form = document.getElementById('sql-generator-form');
+
+  if (type === 'gakka') {
+    form.innerHTML = `
+      <div class="input-group"><label>Código único</label><input id="gen-code" placeholder="ej. ken_zen_extra_01"></div>
+      <div class="input-group"><label>Categoría</label>
+        <select id="gen-category">
+          <option value="gakka">gakka</option>
+          <option value="philosophy">philosophy</option>
+          <option value="history">history</option>
+        </select>
+      </div>
+      <div class="input-group"><label>Grado</label><input id="gen-grade" placeholder="5kyu, 4kyu, 3kyu, 2kyu, 1kyu, shodan..."></div>
+      <div class="input-group"><label>Pregunta</label><input id="gen-question" placeholder="Pregunta..."></div>
+      <div class="input-group"><label>Respuesta correcta</label><input id="gen-correct" placeholder="Respuesta correcta"></div>
+      <div class="input-group"><label>Respuesta falsa 1</label><input id="gen-wrong1"></div>
+      <div class="input-group"><label>Respuesta falsa 2</label><input id="gen-wrong2"></div>
+      <div class="input-group"><label>Respuesta falsa 3</label><input id="gen-wrong3"></div>
+      <div class="input-group"><label>Explicación</label><input id="gen-explain" placeholder="Explicación breve"></div>
+    `;
+    return;
+  }
+
+  if (type === 'glossary') {
+    form.innerHTML = `
+      <div class="input-group"><label>Japonés</label><input id="gen-jp" placeholder="ej. Gassho Rei"></div>
+      <div class="input-group"><label>Español</label><input id="gen-es" placeholder="Significado en español"></div>
+      <div class="input-group"><label>Euskera</label><input id="gen-eu" placeholder="Opcional"></div>
+      <div class="input-group"><label>Categoría</label><input id="gen-category" placeholder="tecnica, dojo, filosofia, keimyaku..."></div>
+      <div class="input-group"><label>Grado</label><input id="gen-grade" placeholder="5kyu"></div>
+    `;
+    return;
+  }
+
+  if (type === 'keimyaku') {
+    form.innerHTML = `
+      <div class="input-group"><label>Nombre</label><input id="gen-name" placeholder="ej. Shin-e"></div>
+      <div class="input-group"><label>Kanji</label><input id="gen-kanji" placeholder="Opcional"></div>
+      <div class="input-group"><label>Grado</label><input id="gen-grade" placeholder="4kyu"></div>
+      <div class="input-group"><label>Zona ES</label><input id="gen-zone-es" placeholder="Zona corporal precisa"></div>
+      <div class="input-group"><label>Zona EU</label><input id="gen-zone-eu" placeholder="Opcional"></div>
+      <div class="input-group"><label>Pista</label><input id="gen-hint" placeholder="Pista breve"></div>
+    `;
+    return;
+  }
+
+  form.innerHTML = `
+    <div class="input-group"><label>Nombre técnica</label><input id="gen-name" placeholder="ej. Uchi uke zuki (ura)"></div>
+    <div class="input-group"><label>Grado</label><input id="gen-grade" placeholder="5kyu"></div>
+    <div class="input-group"><label>Categoría</label>
+      <select id="gen-category">
+        <option value="goho">goho</option>
+        <option value="juho">juho</option>
+        <option value="technique">technique</option>
+      </select>
+    </div>
+    <div class="input-group"><label>Paso 1</label><input id="gen-step1" placeholder="D adopta..."></div>
+    <div class="input-group"><label>Paso 2</label><input id="gen-step2" placeholder="A ataca..."></div>
+    <div class="input-group"><label>Paso 3</label><input id="gen-step3"></div>
+    <div class="input-group"><label>Paso 4</label><input id="gen-step4"></div>
+    <div class="input-group"><label>Paso 5</label><input id="gen-step5" placeholder="Opcional"></div>
+  `;
+}
+
+function generateSenseiSql() {
+  const type = document.getElementById('sql-gen-type').value;
+  const out = document.getElementById('sql-generator-output');
+
+  if (type === 'gakka') {
+    const code = sqlEscape(document.getElementById('gen-code').value);
+    const category = sqlEscape(document.getElementById('gen-category').value);
+    const grade = sqlEscape(document.getElementById('gen-grade').value);
+    const question = sqlEscape(document.getElementById('gen-question').value);
+    const correct = sqlEscape(document.getElementById('gen-correct').value);
+    const wrong1 = sqlEscape(document.getElementById('gen-wrong1').value);
+    const wrong2 = sqlEscape(document.getElementById('gen-wrong2').value);
+    const wrong3 = sqlEscape(document.getElementById('gen-wrong3').value);
+    const explain = sqlEscape(document.getElementById('gen-explain').value);
+
+    out.value = `with q as (
+  insert into public.gakka_questions (code, category, grade, question_es, explanation_es, active)
+  values ('${code}', '${category}', '${grade}', '${question}', '${explain}', true)
+  on conflict (code) do update set
+    category = excluded.category,
+    grade = excluded.grade,
+    question_es = excluded.question_es,
+    explanation_es = excluded.explanation_es,
+    active = true
+  returning id
+),
+deleted as (
+  delete from public.gakka_options where question_id in (select id from q)
+)
+insert into public.gakka_options (question_id, option_es, is_correct)
+select id, '${correct}', true from q
+union all select id, '${wrong1}', false from q
+union all select id, '${wrong2}', false from q
+union all select id, '${wrong3}', false from q;`;
+    return;
+  }
+
+  if (type === 'glossary') {
+    const jp = sqlEscape(document.getElementById('gen-jp').value);
+    const es = sqlEscape(document.getElementById('gen-es').value);
+    const eu = sqlEscape(document.getElementById('gen-eu').value);
+    const category = sqlEscape(document.getElementById('gen-category').value);
+    const grade = sqlEscape(document.getElementById('gen-grade').value);
+
+    out.value = `insert into public.glossary_terms (jp, es, eu, category, grade, active)
+values ('${jp}', '${es}', '${eu}', '${category}', '${grade}', true)
+on conflict (jp, es)
+do update set
+  eu = excluded.eu,
+  category = excluded.category,
+  grade = excluded.grade,
+  active = true;`;
+    return;
+  }
+
+  if (type === 'keimyaku') {
+    const name = sqlEscape(document.getElementById('gen-name').value);
+    const kanji = sqlEscape(document.getElementById('gen-kanji').value);
+    const grade = sqlEscape(document.getElementById('gen-grade').value);
+    const zoneEs = sqlEscape(document.getElementById('gen-zone-es').value);
+    const zoneEu = sqlEscape(document.getElementById('gen-zone-eu').value);
+    const hint = sqlEscape(document.getElementById('gen-hint').value);
+
+    out.value = `insert into public.keimyaku_points (name, kanji, grade, body_zone_es, body_zone_eu, hint, active)
+values ('${name}', '${kanji}', '${grade}', '${zoneEs}', '${zoneEu}', '${hint}', true)
+on conflict (name, grade)
+do update set
+  kanji = excluded.kanji,
+  body_zone_es = excluded.body_zone_es,
+  body_zone_eu = excluded.body_zone_eu,
+  hint = excluded.hint,
+  active = true;`;
+    return;
+  }
+
+  const name = sqlEscape(document.getElementById('gen-name').value);
+  const grade = sqlEscape(document.getElementById('gen-grade').value);
+  const category = sqlEscape(document.getElementById('gen-category').value);
+  const steps = [1, 2, 3, 4, 5]
+    .map(i => document.getElementById(`gen-step${i}`).value.trim())
+    .filter(Boolean)
+    .map(sqlEscape);
+
+  const stepsSql = steps.map((step, i) =>
+    `select id, ${i + 1}, '${step}' from t`
+  ).join('\nunion all\n');
+
+  out.value = `with t as (
+  insert into public.techniques (name, grade, category, source_doc, active)
+  values ('${name}', '${grade}', '${category}', 'Sensei manual entry', true)
+  on conflict (name, grade, source_doc)
+  do update set category = excluded.category, active = true
+  returning id
+),
+deleted as (
+  delete from public.technique_steps where technique_id in (select id from t)
+)
+insert into public.technique_steps (technique_id, step_order, step_text)
+${stepsSql};`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
