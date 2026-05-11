@@ -5502,15 +5502,26 @@ function renderSqlGeneratorForm() {
   }
 
   form.innerHTML = `
-    <div class="input-group"><label>Nombre técnica</label><input id="gen-name" placeholder="ej. Uchi uke zuki (ura)"></div>
-    <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
-    <div class="input-group"><label>Categoría</label>
-      <select id="gen-category">
-        <option value="goho">goho</option>
-        <option value="juho">juho</option>
-        <option value="technique">technique</option>
-      </select>
-    </div>
+  <div class="input-group"><label>Nombre técnica</label><input id="gen-name" placeholder="ej. Uchi uke zuki (ura)"></div>
+  <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
+
+  <div class="input-group">
+    <label>Origen</label>
+    <select id="gen-source">
+      <option value="Sensei manual entry">Nueva entrada manual</option>
+      <option value="BSKF kyu syllabus 2024">Corregir técnica del syllabus kyu</option>
+      <option value="BSKF dan syllabus 2024">Corregir técnica del syllabus dan</option>
+    </select>
+  </div>
+
+  <div class="input-group"><label>Categoría</label>
+    <select id="gen-category">
+      <option value="goho">goho</option>
+      <option value="juho">juho</option>
+      <option value="technique">technique</option>
+    </select>
+  </div>
+
     <div class="input-group"><label>Paso 1</label><input id="gen-step1" placeholder="D adopta..."></div>
     <div class="input-group"><label>Paso 2</label><input id="gen-step2" placeholder="A ataca..."></div>
     <div class="input-group"><label>Paso 3</label><input id="gen-step3"></div>
@@ -5597,6 +5608,7 @@ do update set
   const name = sqlEscape(document.getElementById('gen-name').value);
   const grade = sqlEscape(document.getElementById('gen-grade').value);
   const category = sqlEscape(document.getElementById('gen-category').value);
+  const sourceDoc = sqlEscape(document.getElementById('gen-source').value);
   const steps = [1, 2, 3, 4, 5]
     .map(i => document.getElementById(`gen-step${i}`).value.trim())
     .filter(Boolean)
@@ -5608,7 +5620,7 @@ do update set
 
   out.value = `with t as (
   insert into public.techniques (name, grade, category, source_doc, active)
-  values ('${name}', '${grade}', '${category}', 'Sensei manual entry', true)
+  values ('${name}', '${grade}', '${category}', '${sourceDoc}', true)
   on conflict (name, grade, source_doc)
   do update set category = excluded.category, active = true
   returning id
