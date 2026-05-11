@@ -2224,8 +2224,10 @@ function showMain() {
 
 function showSensei() {
   showScreen('screen-sensei');
+  ensureSenseiLibraryButton();
   renderSensei();
 }
+
 
 function exitGame() {
   if (typeof relampago_timer !== 'undefined' && relampago_timer) {
@@ -5143,6 +5145,214 @@ showResults = async function() {
     gameState.challengeMode = null;
   }
 };
+// ═══════════════════════════════════════════════════════════════════════
+// DOJO LIBRARY PANEL — SUPABASE CONTENT DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════
+
+async function dbGetDojoLibrarySummary() {
+  const [techniques, glossary, keimyaku, gakka] = await Promise.all([
+    sbFetch('/techniques?select=id,name,grade,category,active&active=eq.true') || [],
+    sbFetch('/glossary_terms?select=id,jp,es,category,grade,active&active=eq.true') || [],
+    sbFetch('/keimyaku_points?select=id,name,grade,body_zone_es,active&active=eq.true') || [],
+    sbFetch('/gakka_questions?select=id,code,category,grade,question_es,active&active=eq.true') || []
+  ]);
+
+  return { techniques, glossary, keimyaku, gakka };
+}
+
+function countBy(items, key) {
+  return items.reduce((acc, item) => {
+    const value = item[key] || 'sin_categoria';
+    acc[value] = (acc[value] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function renderCountChips(counts) {
+  return Object.entries(counts)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([name, total]) => `
+      <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 9px;
+        border:1px solid rgba(184,136,42,0.25);border-radius:3px;
+        background:rgba(245,237,224,0.04);font-size:12px;color:rgba(245,237,224,0.72);">
+        <strong style="color:var(--gold);">${total}</strong> ${name}
+      </span>
+    `).join('');
+}
+
+function ensureSenseiLibraryButton() {
+  const topRight = document.querySelector('#screen-sensei .top-bar-right');
+  if (!topRight || document.getElementById('dojo-library-btn')) return;
+
+  const btn = document.createElement('button');
+  btn.id = 'dojo-library-btn';
+  btn.className = 'btn-sm';
+  btn.textContent = 'Biblioteca';
+  btn.onclick = showDojoLibraryPanel;
+
+  topRight.insertBefore(btn, topRight.firstChild);
+}
+
+async function showDojoLibraryPanel() {
+  let panel = document.getElementById('dojo-library-panel');
+
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'dojo-library-panel';
+    panel.style.cssText = 'position:fixed;inset:0;background:#1a1410;z-index:650;overflow-y:auto;padding-bottom:40px;';
+    document.body.appendChild(panel);
+  }
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="position:sticky;top:0;background:#1a1410;z-index:10;
+      border-bottom:1px solid rgba(184,136,42,0.2);
+      padding:16px 20px;display:flex;align-items:center;gap:12px;">
+      <button class="btn-sm" onclick="closeDojoLibraryPanel()">← Volver</button>
+      <div style="font-family:'Cinzel',serif;font-size:13px;letter-spacing:3px;color:var(--gold);flex:1;text-align:center;">
+        BIBLIOTECA DEL DOJO
+      </div>
+    </div>
+    <div style="padding:40px;text-align:center;color:rgba(245,237,224,0.55);">
+      <div class="spinner"></div>
+      Cargando contenido...
+    </div>
+  `;
+
+  try {
+    const data = await dbGetDojoLibrarySummary();
+    window._dojoLibraryCache = data;
+
+    const cards = [
+      {
+        id: 'techniques',
+        title: 'Técnicas',
+        total: data.techniques.length,
+        detail: renderCountChips(countBy(data.techniques, 'grade')),
+        action: 'showDojoLibraryList("techniques")'
+      },
+      {
+        id: 'glossary',
+        title: 'Glosario',
+        total: data.glossary.length,
+        detail: renderCountChips(countBy(data.glossary, 'category')),
+        action: 'showDojoLibraryList("glossary")'
+      },
+      {
+        id: 'keimyaku',
+        title: 'Keimyaku',
+        total: data.keimyaku.length,
+        detail: renderCountChips(countBy(data.keimyaku, 'grade')),
+        action: 'showDojoLibraryList("keimyaku")'
+      },
+      {
+        id: 'gakka',
+        title: 'Preguntas Gakka',
+        total: data.gakka.length,
+        detail: renderCountChips(countBy(data.gakka, 'category')),
+        action: 'showDojoLibraryList("gakka")'
+      }
+    ];
+
+    panel.innerHTML = `
+      <div style="position:sticky;top:0;background:#1a1410;z-index:10;
+        border-bottom:1px solid rgba(184,136,42,0.2);
+        padding:16px 20px;display:flex;align-items:center;gap:12px;">
+        <button class="btn-sm" onclick="closeDojoLibraryPanel()">← Volver</button>
+        <div style="font-family:'Cinzel',serif;font-size:13px;letter-spacing:3px;color:var(--gold);flex:1;text-align:center;">
+          BIBLIOTECA DEL DOJO
+        </div>
+      </div>
+
+      <div style="padding:20px;display:grid;gap:14px;max-width:900px;margin:0 auto;">
+        ${cards.map(card => `
+          <div style="border:1px solid rgba(184,136,42,0.2);background:rgba(245,237,224,0.035);
+            border-radius:4px;padding:18px;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px;">
+              <div>
+                <div style="font-family:'Cinzel',serif;font-size:15px;color:var(--gold);letter-spacing:2px;">
+                  ${card.title}
+                </div>
+                <div style="font-size:36px;font-family:'Cinzel',serif;color:var(--parchment);line-height:1;margin-top:8px;">
+                  ${card.total}
+                </div>
+              </div>
+              <button class="btn-sm" onclick='${card.action}'>Ver</button>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:7px;">${card.detail}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } catch (e) {
+    console.error(e);
+    panel.innerHTML = `
+      <div style="padding:40px;text-align:center;color:#e07070;">
+        Error al cargar la biblioteca.
+        <div style="margin-top:20px;">
+          <button class="btn-sm" onclick="closeDojoLibraryPanel()">← Volver</button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+function showDojoLibraryList(type) {
+  const data = window._dojoLibraryCache;
+  const panel = document.getElementById('dojo-library-panel');
+  if (!data || !panel) return;
+
+  const config = {
+    techniques: {
+      title: 'Técnicas',
+      rows: data.techniques,
+      render: item => `${item.name} · ${item.grade} · ${item.category || 'technique'}`
+    },
+    glossary: {
+      title: 'Glosario',
+      rows: data.glossary,
+      render: item => `${item.jp} → ${item.es} · ${item.category || 'general'} · ${item.grade || ''}`
+    },
+    keimyaku: {
+      title: 'Keimyaku',
+      rows: data.keimyaku,
+      render: item => `${item.name} · ${item.grade} · ${item.body_zone_es}`
+    },
+    gakka: {
+      title: 'Preguntas Gakka',
+      rows: data.gakka,
+      render: item => `${item.question_es} · ${item.category} · ${item.grade}`
+    }
+  }[type];
+
+  if (!config) return;
+
+  panel.innerHTML = `
+    <div style="position:sticky;top:0;background:#1a1410;z-index:10;
+      border-bottom:1px solid rgba(184,136,42,0.2);
+      padding:16px 20px;display:flex;align-items:center;gap:12px;">
+      <button class="btn-sm" onclick="showDojoLibraryPanel()">← Biblioteca</button>
+      <div style="font-family:'Cinzel',serif;font-size:13px;letter-spacing:3px;color:var(--gold);flex:1;text-align:center;">
+        ${config.title.toUpperCase()}
+      </div>
+      <div style="font-family:'Cinzel',serif;color:var(--gold);">${config.rows.length}</div>
+    </div>
+
+    <div style="padding:16px;max-width:900px;margin:0 auto;">
+      ${config.rows.map(item => `
+        <div style="padding:12px 0;border-bottom:1px solid rgba(184,136,42,0.1);
+          color:rgba(245,237,224,0.75);font-size:14px;line-height:1.45;">
+          ${config.render(item)}
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function closeDojoLibraryPanel() {
+  const panel = document.getElementById('dojo-library-panel');
+  if (panel) panel.style.display = 'none';
+}
 
 // ═══════════════════════════════════════════════════════════════════════
 // SENSEI PANEL
