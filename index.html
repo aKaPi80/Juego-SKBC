@@ -5189,12 +5189,65 @@ async function dbGetDojoLibrarySummary() {
   const [techniques, glossary, keimyaku, gakka] = await Promise.all([
     sbFetch('/techniques?select=id,name,grade,category,source_doc,active,technique_steps(step_order,step_text)&active=eq.true') || [],
     sbFetch('/glossary_terms?select=id,jp,es,category,grade,active&active=eq.true') || [],
-    sbFetch('/keimyaku_points?select=id,name,grade,body_zone_es,active&active=eq.true') || [],
+    sbFetch('/keimyaku_points?select=id,name,kanji,grade,body_zone_es,body_zone_eu,hint,active&active=eq.true') || [],
     sbFetch('/gakka_questions?select=id,code,category,grade,question_es,explanation_es,active,gakka_options(option_es,is_correct)&active=eq.true') || []
 
   ]);
 
   return { techniques, glossary, keimyaku, gakka };
+}
+function getKeimyakuLibraryRows() {
+  const rows = window._dojoLibraryCache?.keimyaku || [];
+
+  return rows
+    .slice()
+    .sort((a, b) => {
+      const ga = gradeOrder(a.grade);
+      const gb = gradeOrder(b.grade);
+      if (ga !== gb) return ga - gb;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+}
+
+function renderKeimyakuPickerHtml() {
+  const points = getKeimyakuLibraryRows();
+
+  if (!points.length) {
+    return `
+      <div style="padding:12px;border:1px solid rgba(184,136,42,0.2);color:rgba(245,237,224,0.6);">
+        Primero abre Biblioteca para cargar los puntos Keimyaku.
+      </div>
+    `;
+  }
+
+  return `
+    <div class="input-group">
+      <label>Keimyaku existente</label>
+      <select id="gen-existing-keimyaku" onchange="fillKeimyakuGeneratorFromExisting()">
+        <option value="">Selecciona un punto...</option>
+        ${points.map(p => `
+          <option value="${p.id}">
+            ${p.name} · ${p.grade}
+          </option>
+        `).join('')}
+      </select>
+    </div>
+  `;
+}
+
+function fillKeimyakuGeneratorFromExisting() {
+  const id = document.getElementById('gen-existing-keimyaku')?.value;
+  if (!id) return;
+
+  const point = getKeimyakuLibraryRows().find(p => p.id === id);
+  if (!point) return;
+
+  document.getElementById('gen-name').value = point.name || '';
+  document.getElementById('gen-kanji').value = point.kanji || '';
+  document.getElementById('gen-grade').value = point.grade || '5kyu';
+  document.getElementById('gen-zone-es').value = point.body_zone_es || '';
+  document.getElementById('gen-zone-eu').value = point.body_zone_eu || '';
+  document.getElementById('gen-hint').value = point.hint || '';
 }
 
 function countBy(items, key) {
@@ -5681,16 +5734,29 @@ function renderSqlGeneratorForm() {
   }
 
   if (type === 'keimyaku') {
-    form.innerHTML = `
-      <div class="input-group"><label>Nombre</label><input id="gen-name" placeholder="ej. Shin-e"></div>
-      <div class="input-group"><label>Kanji</label><input id="gen-kanji" placeholder="Opcional"></div>
-      <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
-      <div class="input-group"><label>Zona ES</label><input id="gen-zone-es" placeholder="Zona corporal precisa"></div>
-      <div class="input-group"><label>Zona EU</label><input id="gen-zone-eu" placeholder="Opcional"></div>
-      <div class="input-group"><label>Pista</label><input id="gen-hint" placeholder="Pista breve"></div>
-    `;
-    return;
-  }
+  const currentMode = document.getElementById('gen-keimyaku-mode')?.value || 'new';
+
+  form.innerHTML = `
+    <div class="input-group">
+      <label>Modo</label>
+      <select id="gen-keimyaku-mode" onchange="renderSqlGeneratorForm()">
+        <option value="new" ${currentMode === 'new' ? 'selected' : ''}>Nuevo Keimyaku</option>
+        <option value="edit" ${currentMode === 'edit' ? 'selected' : ''}>Modificar Keimyaku existente</option>
+      </select>
+    </div>
+
+    ${currentMode === 'edit' ? renderKeimyakuPickerHtml() : ''}
+
+    <div class="input-group"><label>Nombre</label><input id="gen-name" placeholder="ej. Shin-e"></div>
+    <div class="input-group"><label>Kanji</label><input id="gen-kanji" placeholder="Opcional"></div>
+    <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
+    <div class="input-group"><label>Zona ES</label><input id="gen-zone-es" placeholder="Zona corporal precisa"></div>
+    <div class="input-group"><label>Zona EU</label><input id="gen-zone-eu" placeholder="Opcional"></div>
+    <div class="input-group"><label>Pista</label><input id="gen-hint" placeholder="Pista breve"></div>
+  `;
+  return;
+}
+
 
   form.innerHTML = `
   <div class="input-group">
