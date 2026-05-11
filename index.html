@@ -5369,6 +5369,41 @@ function closeDojoLibraryPanel() {
 function sqlEscape(value) {
   return String(value || '').replace(/'/g, "''");
 }
+function gradeSelectHtml(id, selected = '5kyu') {
+  const grades = [
+    ['5kyu', '5º Kyu'],
+    ['4kyu', '4º Kyu'],
+    ['3kyu', '3º Kyu'],
+    ['2kyu', '2º Kyu'],
+    ['1kyu', '1º Kyu'],
+    ['shodan', 'Shodan'],
+    ['nidan', 'Nidan'],
+    ['sandan', 'Sandan'],
+    ['yondan', 'Yondan'],
+    ['godan', 'Godan']
+  ];
+
+  return `
+    <select id="${id}">
+      ${grades.map(([value, label]) => `
+        <option value="${value}" ${value === selected ? 'selected' : ''}>${label}</option>
+      `).join('')}
+    </select>
+  `;
+}
+
+function copyGeneratedSql() {
+  const out = document.getElementById('sql-generator-output');
+  if (!out || !out.value.trim()) return;
+
+  navigator.clipboard.writeText(out.value)
+    .then(() => notify('SQL copiado'))
+    .catch(() => {
+      out.select();
+      document.execCommand('copy');
+      notify('SQL copiado');
+    });
+}
 
 function showSenseiSqlGenerator() {
   const panel = document.getElementById('dojo-library-panel');
@@ -5397,11 +5432,18 @@ function showSenseiSqlGenerator() {
       </div>
 
       <div id="sql-generator-form"></div>
-
-      <div style="margin-top:18px;">
-        <button class="btn gold" onclick="generateSenseiSql()">Generar SQL</button>
+            <div style="border:1px solid rgba(184,136,42,0.25);background:rgba(245,237,224,0.035);
+        padding:14px;border-radius:4px;margin-top:14px;font-size:13px;line-height:1.55;color:rgba(245,237,224,0.68);">
+        <strong style="color:var(--gold);">Importante:</strong>
+        el SQL generado aquí no se pega en GitHub ni dentro del código HTML.
+        Se pega en <strong>Supabase → SQL Editor → New query → Run</strong>.
+        GitHub guarda la app; Supabase guarda el contenido vivo del dojo.
       </div>
 
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <button class="btn gold" onclick="generateSenseiSql()">Generar SQL</button>
+        <button class="btn secondary" onclick="copyGeneratedSql()">Copiar SQL</button>
+      </div>
       <textarea id="sql-generator-output" readonly
         style="width:100%;min-height:220px;margin-top:18px;background:#111;border:1px solid rgba(184,136,42,0.25);
         color:#f5ede0;padding:14px;font-family:Consolas,monospace;font-size:12px;line-height:1.45;border-radius:4px;"></textarea>
@@ -5425,7 +5467,7 @@ function renderSqlGeneratorForm() {
           <option value="history">history</option>
         </select>
       </div>
-      <div class="input-group"><label>Grado</label><input id="gen-grade" placeholder="5kyu, 4kyu, 3kyu, 2kyu, 1kyu, shodan..."></div>
+      <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
       <div class="input-group"><label>Pregunta</label><input id="gen-question" placeholder="Pregunta..."></div>
       <div class="input-group"><label>Respuesta correcta</label><input id="gen-correct" placeholder="Respuesta correcta"></div>
       <div class="input-group"><label>Respuesta falsa 1</label><input id="gen-wrong1"></div>
@@ -5442,7 +5484,7 @@ function renderSqlGeneratorForm() {
       <div class="input-group"><label>Español</label><input id="gen-es" placeholder="Significado en español"></div>
       <div class="input-group"><label>Euskera</label><input id="gen-eu" placeholder="Opcional"></div>
       <div class="input-group"><label>Categoría</label><input id="gen-category" placeholder="tecnica, dojo, filosofia, keimyaku..."></div>
-      <div class="input-group"><label>Grado</label><input id="gen-grade" placeholder="5kyu"></div>
+      <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
     `;
     return;
   }
@@ -5451,7 +5493,7 @@ function renderSqlGeneratorForm() {
     form.innerHTML = `
       <div class="input-group"><label>Nombre</label><input id="gen-name" placeholder="ej. Shin-e"></div>
       <div class="input-group"><label>Kanji</label><input id="gen-kanji" placeholder="Opcional"></div>
-      <div class="input-group"><label>Grado</label><input id="gen-grade" placeholder="4kyu"></div>
+      <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
       <div class="input-group"><label>Zona ES</label><input id="gen-zone-es" placeholder="Zona corporal precisa"></div>
       <div class="input-group"><label>Zona EU</label><input id="gen-zone-eu" placeholder="Opcional"></div>
       <div class="input-group"><label>Pista</label><input id="gen-hint" placeholder="Pista breve"></div>
@@ -5461,7 +5503,7 @@ function renderSqlGeneratorForm() {
 
   form.innerHTML = `
     <div class="input-group"><label>Nombre técnica</label><input id="gen-name" placeholder="ej. Uchi uke zuki (ura)"></div>
-    <div class="input-group"><label>Grado</label><input id="gen-grade" placeholder="5kyu"></div>
+    <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
     <div class="input-group"><label>Categoría</label>
       <select id="gen-category">
         <option value="goho">goho</option>
