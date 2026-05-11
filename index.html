@@ -2226,6 +2226,7 @@ async function renderMain() {
 function getAvailableGames() {
   const order = gradeOrder(currentUser.grade);
   const games = [
+    { id: 'construye-tecnica', icon: '🧩', name: 'Construye la Técnica', desc: 'Ordena los pasos de cada técnica: ataque, defensa, evasión y contraataque.', tag: 'Técnica · Secuencia'},
     { id: 'camino-examen', icon: '🥋', name: 'Camino al Examen', desc: 'Supera pruebas de técnica, keimyaku, gakka y vocabulario para preparar tu siguiente grado.', tag: 'Grading Quest' },
     { id: 'quiz-filosofia',   icon: '⚡', name: t('game_filosofia_name'), desc: t('game_filosofia_desc'), tag: t('game_filosofia_tag') },
     { id: 'quiz-tecnicas',    icon: '🥋', name: t('game_tecnicas_name'), desc: t('game_tecnicas_desc'), tag: t('game_tecnicas_tag') },
@@ -2529,6 +2530,128 @@ const Q_FILOSOFIA_EXTRA = [...Q_GAKKA_KYU, ...Q_CHINKON];
 const Q_TECNICAS_EXTRA = [...Q_UMPO, ...Q_UKEMI, ...Q_GAMAE, ...Q_RANDORI, ...Q_EMBU, ...Q_SHAKUJO, ...Q_FAMILIAS_TECNICAS];
 const Q_HISTORIA_EXTRA = [...Q_TRES_VESSELS];
 
+const TECNICA_BUILDER = [
+  {
+    nombre: 'Uchi uke zuki (ura)',
+    grade: '5kyu',
+    pasos: [
+      'D adopta ichiji gamae',
+      'A lanza gyaku zuki jodan',
+      'D bloquea con uchi uke',
+      'D contraataca con gyaku zuki al suigetsu'
+    ]
+  },
+  {
+    nombre: 'Tenshin geri',
+    grade: '5kyu',
+    pasos: [
+      'D adopta ichiji gamae',
+      'A lanza gyaku zuki jodan',
+      'D evade lateralmente con kani ashi',
+      'D contraataca con gyaku geri'
+    ]
+  },
+  {
+    nombre: 'Yori nuki (katate)',
+    grade: '5kyu',
+    pasos: [
+      'A agarra la misma mano por fuera de la muñeca',
+      'D dirige la mano hacia la línea débil del agarre',
+      'D usa kumade zuki hacia mikazuki',
+      'D recupera distancia y zanshin'
+    ]
+  },
+  {
+    nombre: 'Kote nuki',
+    grade: '5kyu',
+    pasos: [
+      'A agarra la muñeca en cruz por dentro',
+      'D gira la muñeca hacia el punto débil del agarre',
+      'D libera con kote nuki',
+      'D contraataca con uraken uchi hacia sango o yongo'
+    ]
+  },
+  {
+    nombre: 'Mae ryusui geri',
+    grade: '4kyu',
+    pasos: [
+      'D adopta nio gamae',
+      'A lanza gyaku shuto uchi',
+      'D bloquea con mae ryusui uke',
+      'D contraataca con gyaku geri'
+    ]
+  },
+  {
+    nombre: 'Shita uke geri',
+    grade: '4kyu',
+    pasos: [
+      'D adopta hasso gamae',
+      'A lanza gyaku zuki chudan',
+      'D bloquea con jun shita uke',
+      'D contraataca con gyaku geri'
+    ]
+  },
+  {
+    nombre: 'Ryote yori nuki',
+    grade: '4kyu',
+    pasos: [
+      'A agarra ambas muñecas de D',
+      'D usa me uchi para crear apertura',
+      'D libera ambas muñecas',
+      'D contraataca con chudan dan zuki'
+    ]
+  },
+  {
+    nombre: 'Tsubame gaeshi renhanko',
+    grade: '3kyu',
+    pasos: [
+      'D adopta taiki gamae',
+      'A lanza gyaku zuki jodan',
+      'D responde con tsubame gaeshi',
+      'D continúa con renhanko'
+    ]
+  },
+  {
+    nombre: 'Kusshin zuki',
+    grade: '2kyu',
+    pasos: [
+      'A lanza furi zuki',
+      'D baja el cuerpo con kusshin',
+      'D bloquea con jun uchi age uke',
+      'D contraataca con gyaku zuki'
+    ]
+  },
+  {
+    nombre: 'Han tenshin geri',
+    grade: '2kyu',
+    pasos: [
+      'A lanza gyaku geri',
+      'D hace medio giro con han tenshin',
+      'D bloquea con uchi otoshi uke',
+      'D contraataca con jun geri'
+    ]
+  },
+  {
+    nombre: 'Shita uke zuki',
+    grade: '1kyu',
+    pasos: [
+      'D adopta hasso gamae',
+      'A lanza jun zuki',
+      'D bloquea con shita uke',
+      'D contraataca con jodan gyaku zuki'
+    ]
+  },
+  {
+    nombre: 'Tanto furi age ryusui geri',
+    grade: 'shodan',
+    pasos: [
+      'A ataca con tanto furi age',
+      'D adopta nio gamae',
+      'D defiende con ryusui',
+      'D contraataca con gyaku geri'
+    ]
+  }
+];
 
 // ═══════════════════════════════════════════════════════════════════════
 // GAME ENGINE
@@ -2562,6 +2685,7 @@ function startGame(gameId) {
   gameState = { id: gameId, score: 0, total: 0, current: 0, questions: [], answered: false };
 
   const titleMap = {
+    'construye-tecnica': '🧩 Construye la Técnica',
     'camino-examen': '🥋 Camino al Examen',
     'quiz-filosofia': '⚡ Supervivencia',
     'quiz-tecnicas': 'Técnicas por Grado',
@@ -2577,6 +2701,7 @@ function startGame(gameId) {
   document.getElementById('game-title-display').textContent = titleMap[gameId] || gameId;
 
   switch(gameId) {
+    case 'construye-tecnica': setupConstruyeTecnica(); break;
     case 'camino-examen': setupCaminoExamen(); break;
     case 'quiz-filosofia': setupMCQ(shuffle(getQuestionsForGrade([...Q_FILOSOFIA, ...Q_FILOSOFIA_EXTRA])).slice(0,12)); break;
     case 'quiz-tecnicas':  setupMCQ(shuffle(getQuestionsForGrade([...Q_TECNICAS, ...Q_TECNICAS_EXTRA])).slice(0,12)); break;
@@ -4120,6 +4245,188 @@ function setupCaminoExamen() {
       </button>
     </div>
   `;
+}
+function setupConstruyeTecnica() {
+  const userOrder = gradeOrder(currentUser.grade);
+  const pool = TECNICA_BUILDER.filter(t => gradeOrder(t.grade) <= userOrder);
+
+  gameState.id = 'construye-tecnica';
+  gameState.questions = shuffle(pool).slice(0, 8);
+  gameState.total = gameState.questions.length;
+  gameState.current = 0;
+  gameState.score = 0;
+  gameState.answered = false;
+
+  renderConstruyeTecnica();
+}
+
+function renderConstruyeTecnica() {
+  const tecnica = gameState.questions[gameState.current];
+  if (!tecnica) {
+    showResults();
+    return;
+  }
+
+  updateProgress();
+
+  gameState.builderSelected = [];
+  gameState.builderAnswered = false;
+  gameState.builderPieces = shuffle(
+    tecnica.pasos.map((text, order) => ({ text, order }))
+  );
+
+  document.getElementById('game-area').innerHTML = `
+    <div class="question-card fade-in">
+      <div class="question-num">
+        Técnica ${gameState.current + 1} de ${gameState.total} · ${GRADES[tecnica.grade]?.label || tecnica.grade}
+      </div>
+      <div class="question-text" style="font-size:24px;color:var(--gold);">
+        ${tecnica.nombre}
+      </div>
+      <div class="question-sub">
+        Pulsa los pasos en el orden correcto.
+      </div>
+    </div>
+
+    <div class="question-card" style="padding:18px;margin-bottom:18px;">
+      <div style="font-family:'Cinzel',serif;font-size:11px;letter-spacing:2px;color:rgba(184,136,42,0.6);margin-bottom:10px;text-transform:uppercase;">
+        Tu secuencia
+      </div>
+      <div id="builder-answer" class="sort-answer-wrap" style="min-height:64px;"></div>
+    </div>
+
+    <div class="sort-tiles-wrap">
+      ${gameState.builderPieces.map((piece, i) => `
+        <button class="tile" id="builder-piece-${i}" onclick="selectTechniqueStep(${i})">
+          ${piece.text}
+        </button>
+      `).join('')}
+    </div>
+
+    <div class="next-btn-wrap">
+      <button class="btn secondary" style="max-width:180px;" onclick="resetTechniqueSteps()">
+        Reiniciar
+      </button>
+      <button class="btn gold" style="max-width:180px;" onclick="checkTechniqueSteps()">
+        Comprobar
+      </button>
+    </div>
+
+    <div class="feedback-box" id="feedback"></div>
+
+    <div class="next-btn-wrap" id="next-wrap" style="display:none;">
+      <button class="btn gold" style="max-width:220px;" onclick="nextConstruyeTecnica()">
+        ${gameState.current + 1 >= gameState.total ? t('results_btn') : t('next_btn')}
+      </button>
+    </div>
+  `;
+}
+
+function selectTechniqueStep(index) {
+  if (gameState.builderAnswered) return;
+
+  const piece = gameState.builderPieces[index];
+  if (!piece || gameState.builderSelected.some(p => p.index === index)) return;
+
+  gameState.builderSelected.push({ ...piece, index });
+
+  const btn = document.getElementById(`builder-piece-${index}`);
+  if (btn) {
+    btn.classList.add('used');
+    btn.disabled = true;
+  }
+
+  renderBuilderAnswer();
+}
+
+function renderBuilderAnswer() {
+  const answer = document.getElementById('builder-answer');
+  if (!answer) return;
+
+  answer.innerHTML = gameState.builderSelected.map((piece, pos) => `
+    <button class="tile" style="font-size:13px;" onclick="removeTechniqueStep(${pos})">
+      ${pos + 1}. ${piece.text}
+    </button>
+  `).join('');
+}
+
+function removeTechniqueStep(position) {
+  if (gameState.builderAnswered) return;
+
+  const removed = gameState.builderSelected.splice(position, 1)[0];
+  if (removed) {
+    const btn = document.getElementById(`builder-piece-${removed.index}`);
+    if (btn) {
+      btn.classList.remove('used');
+      btn.disabled = false;
+    }
+  }
+
+  renderBuilderAnswer();
+}
+
+function resetTechniqueSteps() {
+  if (gameState.builderAnswered) return;
+
+  gameState.builderSelected = [];
+  document.querySelectorAll('[id^="builder-piece-"]').forEach(btn => {
+    btn.classList.remove('used');
+    btn.disabled = false;
+  });
+
+  renderBuilderAnswer();
+}
+
+function checkTechniqueSteps() {
+  if (gameState.builderAnswered) return;
+
+  const tecnica = gameState.questions[gameState.current];
+  const fb = document.getElementById('feedback');
+
+  if (gameState.builderSelected.length < tecnica.pasos.length) {
+    fb.style.display = 'block';
+    fb.style.borderColor = 'var(--red)';
+    fb.innerHTML = '<strong>Faltan pasos</strong> — coloca todos los pasos antes de comprobar.';
+    return;
+  }
+
+  gameState.builderAnswered = true;
+
+  const correct = gameState.builderSelected.every((piece, index) => piece.order === index);
+
+  if (correct) {
+    gameState.score++;
+  }
+
+  saveGameProgress(correct);
+  updateScore();
+
+  fb.style.display = 'block';
+  fb.style.borderColor = correct ? '#2d6a3f' : 'var(--red)';
+  fb.innerHTML = `
+    <strong>${correct ? t('correct_txt') : t('incorrect_txt')}</strong>
+    <br><br>
+    <div style="font-size:13px;color:rgba(245,237,224,0.65);margin-bottom:8px;">Orden correcto:</div>
+    ${tecnica.pasos.map((paso, i) => `${i + 1}. ${paso}`).join('<br>')}
+  `;
+
+  document.querySelectorAll('[id^="builder-piece-"]').forEach(btn => {
+    btn.disabled = true;
+  });
+
+  document.getElementById('next-wrap').style.display = 'block';
+}
+
+function nextConstruyeTecnica() {
+  gameState.current++;
+  gameState.answered = false;
+
+  if (gameState.current >= gameState.total) {
+    showResults();
+    return;
+  }
+
+  renderConstruyeTecnica();
 }
 
 // ─── PROGRESS & RESULTS ───
