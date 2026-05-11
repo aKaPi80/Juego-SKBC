@@ -3610,6 +3610,11 @@ function renderKiai() {
   }
 
   const pair = gameState.kiaiPool[gameState.kiaiIdx];
+
+  if (!pair) {
+    endKiai();return;
+  }
+
   // 50/50: show JP ask ES, or show ES ask JP
   const showJP = Math.random() > 0.5;
   const question = showJP ? pair.jp : pair.es;
@@ -3698,46 +3703,77 @@ function checkKiai(btn, selected, idx) {
 }
 
 async function endKiai() {
-  const score = gameState.kiaiScore;
-  const total = gameState.kiaiTotal;
-  const pct = total > 0 ? Math.round(gameState.score / total * 100) : 0;
+  const score = gameState.kiaiScore || 0;
+  const total = gameState.kiaiTotal || 0;
+  const correctAnswers = gameState.score || 0;
+  const pct = total > 0 ? Math.round(correctAnswers / total * 100) : 0;
 
-  if (currentUser && total > 0) {
-    await dbUpsertStats(currentUser.id, { games:1, questions:total, correct:gameState.score, rankPts:Math.min(score,15) });
-    await dbUpsertGameStat(currentUser.id, 'kiai-round', gameState.score, total);
-    await dbAddHistory(currentUser.id, 'kiai-round', gameState.score, total, pct);
-    if (currentUser._cachedStats) {
-      currentUser._cachedStats.total_games += 1;
-      currentUser._cachedStats.total_questions += total;
-      currentUser._cachedStats.total_correct += gameState.score;
-    }
-    gameState._localStats = null;
-  }
-  // ── Save session stats ──
-  SK_saveSession({
-    games: 1, correct: gameState.score, total,
+  // Guardar sesión local SIEMPRE, aunque Supabase falle.
+  const session = SK_saveSession({
+    games: 1,
+    correct: correctAnswers,
+    total,
     gameId: 'kiai-round',
     bestKiai: score,
     perfect: pct === 100 ? 1 : 0,
-    playedEU: LANG==='eu', playedES: LANG==='es'
+    playedEU: LANG === 'eu',
+    playedES: LANG === 'es'
   });
 
+  const badges = SK_checkBadges(session);
+  if (badges.newlyEarned.length > 0) {
+    setTimeout(() => {
+      badges.newlyEarned.forEach((b, i) => {
+        setTimeout(() => showBadgeNotification(b), i * 1500);
+      });
+    }, 600);
+  }
+
+  // Intentar guardar en Supabase, pero sin bloquear el resultado.
+  if (currentUser && currentUser.id && total > 0) {
+    try {
+      await Promise.all([
+        dbUpsertStats(currentUser.id, {
+          games: 1,
+          questions: total,
+          correct: correctAnswers,
+          rankPts: Math.min(score, 15)
+        }),
+        dbUpsertGameStat(currentUser.id, 'kiai-round', correctAnswers, total),
+        dbAddHistory(currentUser.id, 'kiai-round', correctAnswers, total, pct)
+      ]);
+
+      if (currentUser._cachedStats) {
+        currentUser._cachedStats.total_games += 1;
+        currentUser._cachedStats.total_questions += total;
+        currentUser._cachedStats.total_correct += correctAnswers;
+      }
+    } catch (e) {
+      console.error('Error saving kiai stats:', e);
+      notify('Resultado guardado localmente. Error al sincronizar ranking.');
+    }
+  }
+
+  gameState._localStats = null;
+
   const stars = score >= 20 ? '⭐⭐⭐' : score >= 10 ? '⭐⭐' : score >= 5 ? '⭐' : '';
+
   document.getElementById('game-area').innerHTML = `
     <div class="question-card fade-in" style="text-align:center;padding:32px 24px;">
       <div style="font-size:56px;margin-bottom:8px;">😤</div>
       <div style="font-family:'Cinzel',serif;font-size:18px;color:var(--gold);margin-bottom:8px;">KIAI!</div>
       <div style="font-family:'Cinzel',serif;font-size:56px;color:var(--gold);font-weight:900;line-height:1;">${score}</div>
-      <div style="color:var(--muted);font-size:14px;margin-bottom:4px;">${LANG==='eu'?'puntu':'puntos'}</div>
+      <div style="color:var(--muted);font-size:14px;margin-bottom:4px;">${LANG === 'eu' ? 'puntu' : 'puntos'}</div>
       ${stars ? `<div style="font-size:32px;margin:8px 0;">${stars}</div>` : ''}
-      <div style="font-size:13px;color:var(--muted);margin-bottom:24px;">${gameState.score}/${total} ${LANG==='eu'?'zuzen':'correctas'} · ${pct}%</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:24px;">${correctAnswers}/${total} ${LANG === 'eu' ? 'zuzen' : 'correctas'} · ${pct}%</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <button class="btn gold" onclick="setupKiai()">${LANG==='eu'?'Berriro! 😤':'¡Otra vez! 😤'}</button>
+        <button class="btn gold" onclick="setupKiai()">${LANG === 'eu' ? 'Berriro! 😤' : '¡Otra vez! 😤'}</button>
         <button class="btn secondary" onclick="exitGame()">${t('back_dojo')}</button>
       </div>
     </div>
   `;
 }
+
 
 // ─── QUIZ RELÁMPAGO ───
 let relampago_timer = null;
