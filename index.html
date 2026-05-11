@@ -1952,6 +1952,21 @@ async function dbAddHistory(kenshiId, gameId, score, total, pct) {
     body: JSON.stringify({ kenshi_id: kenshiId, game_id: gameId, score, total, pct })
   });
 }
+async function dbGetTechniqueBuilder() {
+  const rows = await sbFetch(
+    '/techniques?select=id,name,grade,category,source_doc,technique_steps(step_order,step_text)&active=eq.true'
+  ) || [];
+
+  return rows.map(t => ({
+    nombre: t.name,
+    grade: t.grade,
+    category: t.category,
+    sourceDoc: t.source_doc,
+    pasos: (t.technique_steps || [])
+      .sort((a, b) => a.step_order - b.step_order)
+      .map(s => s.step_text)
+  })).filter(t => t.pasos.length >= 2);
+}
 
 // ─── Sensei credentials ───
 const SENSEI = { user: 'aKaPi', pass: '6577011656' };
@@ -4246,19 +4261,52 @@ function setupCaminoExamen() {
     </div>
   `;
 }
-function setupConstruyeTecnica() {
-  const userOrder = gradeOrder(currentUser.grade);
-  const pool = TECNICA_BUILDER.filter(t => gradeOrder(t.grade) <= userOrder);
+async function setupConstruyeTecnica() {
+  document.getElementById('game-area').innerHTML = `
+    <div class="question-card fade-in" style="text-align:center;">
+      <div class="spinner"></div>
+      <div style="color:rgba(245,237,224,0.6);font-size:15px;">
+        Cargando técnicas del syllabus...
+      </div>
+    </div>
+  `;
 
-  gameState.id = 'construye-tecnica';
-  gameState.questions = shuffle(pool).slice(0, 8);
-  gameState.total = gameState.questions.length;
-  gameState.current = 0;
-  gameState.score = 0;
-  gameState.answered = false;
+  try {
+    const onlineTechniques = await dbGetTechniqueBuilder();
 
-  renderConstruyeTecnica();
+    const userOrder = gradeOrder(currentUser.grade);
+    const eligible = onlineTechniques.filter(t => gradeOrder(t.grade) <= userOrder);
+
+    if (!eligible.length) {
+      throw new Error('No hay técnicas disponibles para tu grado.');
+    }
+
+    const pool = shuffle(eligible).slice(0, 8);
+
+    gameState.questions = pool;
+    gameState.total = pool.length;
+    gameState.current = 0;
+    gameState.score = 0;
+    gameState.answered = false;
+
+    renderConstruyeTecnica();
+  } catch (e) {
+    console.error(e);
+
+    document.getElementById('game-area').innerHTML = `
+      <div class="question-card fade-in" style="text-align:center;">
+        <div class="question-text">No se pudieron cargar las técnicas.</div>
+        <div class="question-sub" style="margin-top:8px;">
+          Revisa que las tablas techniques y technique_steps tengan datos activos.
+        </div>
+        <button class="btn secondary" style="max-width:220px;margin-top:20px;" onclick="exitGame()">
+          ${t('back_dojo')}
+        </button>
+      </div>
+    `;
+  }
 }
+
 
 function renderConstruyeTecnica() {
   const tecnica = gameState.questions[gameState.current];
