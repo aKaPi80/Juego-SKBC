@@ -5190,7 +5190,8 @@ async function dbGetDojoLibrarySummary() {
     sbFetch('/techniques?select=id,name,grade,category,source_doc,active,technique_steps(step_order,step_text)&active=eq.true') || [],
     sbFetch('/glossary_terms?select=id,jp,es,category,grade,active&active=eq.true') || [],
     sbFetch('/keimyaku_points?select=id,name,grade,body_zone_es,active&active=eq.true') || [],
-    sbFetch('/gakka_questions?select=id,code,category,grade,question_es,active&active=eq.true') || []
+    sbFetch('/gakka_questions?select=id,code,category,grade,question_es,explanation_es,active,gakka_options(option_es,is_correct)&active=eq.true') || []
+
   ]);
 
   return { techniques, glossary, keimyaku, gakka };
@@ -5518,6 +5519,69 @@ function fillTechniqueGeneratorFromExisting() {
     if (input) input.value = steps[i - 1]?.step_text || '';
   }
 }
+function getGakkaLibraryRows() {
+  const rows = window._dojoLibraryCache?.gakka || [];
+
+  return rows
+    .map(q => ({
+      ...q,
+      gakka_options: q.gakka_options || []
+    }))
+    .sort((a, b) => {
+      const ga = gradeOrder(a.grade);
+      const gb = gradeOrder(b.grade);
+      if (ga !== gb) return ga - gb;
+      return (a.code || '').localeCompare(b.code || '');
+    });
+}
+
+function renderGakkaPickerHtml() {
+  const questions = getGakkaLibraryRows();
+
+  if (!questions.length) {
+    return `
+      <div style="padding:12px;border:1px solid rgba(184,136,42,0.2);color:rgba(245,237,224,0.6);">
+        Primero abre Biblioteca para cargar las preguntas Gakka.
+      </div>
+    `;
+  }
+
+  return `
+    <div class="input-group">
+      <label>Pregunta existente</label>
+      <select id="gen-existing-gakka" onchange="fillGakkaGeneratorFromExisting()">
+        <option value="">Selecciona una pregunta...</option>
+        ${questions.map(q => `
+          <option value="${q.id}">
+            ${q.code} · ${q.grade} · ${q.category}
+          </option>
+        `).join('')}
+      </select>
+    </div>
+  `;
+}
+
+function fillGakkaGeneratorFromExisting() {
+  const id = document.getElementById('gen-existing-gakka')?.value;
+  if (!id) return;
+
+  const question = getGakkaLibraryRows().find(q => q.id === id);
+  if (!question) return;
+
+  const options = question.gakka_options || [];
+  const correct = options.find(o => o.is_correct);
+  const wrong = options.filter(o => !o.is_correct);
+
+  document.getElementById('gen-code').value = question.code || '';
+  document.getElementById('gen-category').value = question.category || 'gakka';
+  document.getElementById('gen-grade').value = question.grade || '5kyu';
+  document.getElementById('gen-question').value = question.question_es || '';
+  document.getElementById('gen-correct').value = correct?.option_es || '';
+  document.getElementById('gen-wrong1').value = wrong[0]?.option_es || '';
+  document.getElementById('gen-wrong2').value = wrong[1]?.option_es || '';
+  document.getElementById('gen-wrong3').value = wrong[2]?.option_es || '';
+  document.getElementById('gen-explain').value = question.explanation_es || '';
+}
 
 function showSenseiSqlGenerator() {
   const panel = document.getElementById('dojo-library-panel');
@@ -5572,25 +5636,38 @@ function renderSqlGeneratorForm() {
   const form = document.getElementById('sql-generator-form');
 
   if (type === 'gakka') {
-    form.innerHTML = `
-      <div class="input-group"><label>Código único</label><input id="gen-code" placeholder="ej. ken_zen_extra_01"></div>
-      <div class="input-group"><label>Categoría</label>
-        <select id="gen-category">
-          <option value="gakka">gakka</option>
-          <option value="philosophy">philosophy</option>
-          <option value="history">history</option>
-        </select>
-      </div>
-      <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
-      <div class="input-group"><label>Pregunta</label><input id="gen-question" placeholder="Pregunta..."></div>
-      <div class="input-group"><label>Respuesta correcta</label><input id="gen-correct" placeholder="Respuesta correcta"></div>
-      <div class="input-group"><label>Respuesta falsa 1</label><input id="gen-wrong1"></div>
-      <div class="input-group"><label>Respuesta falsa 2</label><input id="gen-wrong2"></div>
-      <div class="input-group"><label>Respuesta falsa 3</label><input id="gen-wrong3"></div>
-      <div class="input-group"><label>Explicación</label><input id="gen-explain" placeholder="Explicación breve"></div>
-    `;
-    return;
-  }
+  const currentMode = document.getElementById('gen-gakka-mode')?.value || 'new';
+
+  form.innerHTML = `
+    <div class="input-group">
+      <label>Modo</label>
+      <select id="gen-gakka-mode" onchange="renderSqlGeneratorForm()">
+        <option value="new" ${currentMode === 'new' ? 'selected' : ''}>Nueva pregunta</option>
+        <option value="edit" ${currentMode === 'edit' ? 'selected' : ''}>Modificar pregunta existente</option>
+      </select>
+    </div>
+
+    ${currentMode === 'edit' ? renderGakkaPickerHtml() : ''}
+
+    <div class="input-group"><label>Código único</label><input id="gen-code" placeholder="ej. ken_zen_extra_01"></div>
+    <div class="input-group"><label>Categoría</label>
+      <select id="gen-category">
+        <option value="gakka">gakka</option>
+        <option value="philosophy">philosophy</option>
+        <option value="history">history</option>
+      </select>
+    </div>
+    <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
+    <div class="input-group"><label>Pregunta</label><input id="gen-question" placeholder="Pregunta..."></div>
+    <div class="input-group"><label>Respuesta correcta</label><input id="gen-correct" placeholder="Respuesta correcta"></div>
+    <div class="input-group"><label>Respuesta falsa 1</label><input id="gen-wrong1"></div>
+    <div class="input-group"><label>Respuesta falsa 2</label><input id="gen-wrong2"></div>
+    <div class="input-group"><label>Respuesta falsa 3</label><input id="gen-wrong3"></div>
+    <div class="input-group"><label>Explicación</label><input id="gen-explain" placeholder="Explicación breve"></div>
+  `;
+  return;
+}
+
 
   if (type === 'glossary') {
     form.innerHTML = `
