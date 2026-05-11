@@ -1222,66 +1222,87 @@ let _musicOn = false;
 function SK_playZen() {
   if (_musicOn) return;
   if (localStorage.getItem('sk_music') === 'off') return;
+
   try {
     _audioCtx = _audioCtx || new (window.AudioContext || window.webkitAudioContext)();
     if (_audioCtx.state === 'suspended') _audioCtx.resume();
+
     _musicOn = true;
     const ctx = _audioCtx;
+
     const master = ctx.createGain();
-    master.gain.value = 0.15;
+    master.gain.value = 0.18;
     master.connect(ctx.destination);
+
     _musicNodes = [master];
 
-    // Deep drone
-    [[73.4, 0.5], [146.8, 0.2], [220.0, 0.12], [293.7, 0.08]].forEach(([freq, vol]) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'sine'; o.frequency.value = freq; g.gain.value = vol;
-      o.connect(g); g.connect(master); o.start();
-      _musicNodes.push(o, g);
-    });
+    let step = 0;
+    const tempo = 92;
+    const intervalMs = 60000 / tempo / 2;
 
-    // Bowl hits
-    const bowls = [528, 396, 639, 432, 741];
-    let t = ctx.currentTime + 1;
-    function scheduleBowls() {
-      if (!_musicOn) return;
-      for (let i = 0; i < 6; i++) {
-        const freq = bowls[Math.floor(Math.random() * bowls.length)];
-        const dur = 3 + Math.random() * 2;
-        const o = ctx.createOscillator();
-        const g = ctx.createGain();
-        o.type = 'sine'; o.frequency.value = freq;
-        g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-        o.connect(g); g.connect(master);
-        o.start(t); o.stop(t + dur + 0.1);
-        t += 4 + Math.random() * 7;
+    function taikoHit(time, type = 'deep') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+
+      osc.type = 'sine';
+
+      if (type === 'deep') {
+        osc.frequency.setValueAtTime(95, time);
+        osc.frequency.exponentialRampToValueAtTime(45, time + 0.18);
+        gain.gain.setValueAtTime(0.9, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.32);
+        filter.frequency.value = 180;
+      } else if (type === 'mid') {
+        osc.frequency.setValueAtTime(150, time);
+        osc.frequency.exponentialRampToValueAtTime(70, time + 0.12);
+        gain.gain.setValueAtTime(0.45, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.18);
+        filter.frequency.value = 260;
+      } else {
+        osc.frequency.setValueAtTime(260, time);
+        osc.frequency.exponentialRampToValueAtTime(120, time + 0.08);
+        gain.gain.setValueAtTime(0.22, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
+        filter.frequency.value = 500;
       }
-      setTimeout(scheduleBowls, Math.max((t - ctx.currentTime - 8) * 1000, 1000));
+
+      filter.type = 'lowpass';
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(master);
+
+      osc.start(time);
+      osc.stop(time + 0.35);
+
+      _musicNodes.push(osc, gain, filter);
     }
-    scheduleBowls();
+
+    function schedulePattern() {
+      if (!_musicOn) return;
+
+      const now = ctx.currentTime + 0.03;
+      const pattern = [
+        'deep', null, 'mid', null,
+        'deep', 'rim', 'mid', null,
+        'deep', null, 'mid', 'rim',
+        'deep', 'mid', 'deep', null
+      ];
+
+      const hit = pattern[step % pattern.length];
+      if (hit) taikoHit(now, hit);
+
+      step++;
+      const timer = setTimeout(schedulePattern, intervalMs);
+      _musicNodes.push({ disconnect(){ clearTimeout(timer); } });
+    }
+
+    schedulePattern();
     updateMusicBtn();
-  } catch(e) { _musicOn = false; }
-}
-
-function SK_stopZen() {
-  _musicOn = false;
-  _musicNodes.forEach(n => { try { if(n.stop) n.stop(); n.disconnect(); } catch(e){} });
-  _musicNodes = [];
-  updateMusicBtn();
-}
-
-function SK_toggleMusic() {
-  if (_musicOn) { SK_stopZen(); localStorage.setItem('sk_music','off'); }
-  else { localStorage.removeItem('sk_music'); SK_playZen(); }
-}
-
-function updateMusicBtn() {
-  document.querySelectorAll('.music-btn').forEach(b => {
-    b.textContent = _musicOn ? '🔇' : '🎵';
-  });
+  } catch (e) {
+    console.error(e);
+    _musicOn = false;
+  }
 }
 
 
