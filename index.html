@@ -1967,6 +1967,31 @@ async function dbGetTechniqueBuilder() {
       .map(s => s.step_text)
   })).filter(t => t.pasos.length >= 2);
 }
+async function dbGetGlossaryTerms() {
+  const rows = await sbFetch(
+    '/glossary_terms?select=jp,es,eu,category,grade&active=eq.true&order=grade.asc'
+  ) || [];
+
+  return rows.map(r => ({
+    jp: r.jp,
+    es: LANG === 'eu' && r.eu ? r.eu : r.es,
+    esRaw: r.es,
+    eu: r.eu,
+    category: r.category,
+    grade: r.grade
+  }));
+}
+
+async function getOnlineGlossaryForUser() {
+  const terms = await dbGetGlossaryTerms();
+  const userOrder = gradeOrder(currentUser.grade);
+
+  return terms.filter(term =>
+    !term.grade || gradeOrder(term.grade) <= userOrder
+  );
+}
+
+
 function buildTechniqueDescription(tecnica) {
   return tecnica.pasos
     .map((paso, i) => `${i + 1}. ${paso}`)
@@ -2852,22 +2877,49 @@ function nextMCQ() {
 }
 
 // ─── MATCH GAME ───
-function setupMatch() {
-  const pool = shuffle(Q_VOCABJP).slice(0, 6);
-  gameState.matchPool = pool;
-  gameState.selected = null; // {side, index}
-  gameState.matched = [];
-  gameState.matchScore = 0;
-  gameState.total = pool.length;
-  gameState.score = 0;
+async function setupMatch() {
+  document.getElementById('game-area').innerHTML = `
+    <div class="question-card fade-in" style="text-align:center;">
+      <div class="spinner"></div>
+      <div style="color:rgba(245,237,224,0.6);font-size:15px;">
+        Cargando vocabulario...
+      </div>
+    </div>
+  `;
 
-  const leftItems = shuffle(pool.map((_, i) => i));
-  const rightItems = shuffle(pool.map((_, i) => i));
-  gameState.leftOrder = leftItems;
-  gameState.rightOrder = rightItems;
+  try {
+    const terms = await getOnlineGlossaryForUser();
 
-  renderMatch();
+    if (terms.length < 6) {
+      throw new Error('No hay suficiente vocabulario.');
+    }
+
+    const pool = shuffle(terms).slice(0, 6);
+
+    gameState.matchPool = pool;
+    gameState.selected = null;
+    gameState.matched = [];
+    gameState.matchScore = 0;
+    gameState.total = pool.length;
+    gameState.score = 0;
+
+    gameState.leftOrder = shuffle(pool.map((_, i) => i));
+    gameState.rightOrder = shuffle(pool.map((_, i) => i));
+
+    renderMatch();
+  } catch (e) {
+    console.error(e);
+    document.getElementById('game-area').innerHTML = `
+      <div class="question-card fade-in" style="text-align:center;">
+        <div class="question-text">No se pudo cargar el vocabulario.</div>
+        <button class="btn secondary" style="max-width:220px;margin-top:20px;" onclick="exitGame()">
+          ${t('back_dojo')}
+        </button>
+      </div>
+    `;
+  }
 }
+
 
 function renderMatch() {
   const pool = gameState.matchPool;
@@ -3427,25 +3479,48 @@ const KIAI_PAIRS = [
   {jp:'Danchu',es:'Esternón'}, {jp:'Kekkai',es:'Interior del muslo'}, {jp:'Rinkyu',es:'Empeine del pie'},
 ];
 
-function setupKiai() {
-  const seenNow = window._shownQuestions || new Set();
-  const unseen = KIAI_PAIRS.filter(p => !seenNow.has(p.jp));
-  const seen = KIAI_PAIRS.filter(p => seenNow.has(p.jp));
-  const pool = [...shuffle(unseen), ...shuffle(seen)];
-  // Mark all as seen after each full game
-  if (unseen.length < 5) window._shownQuestions = new Set(); // reset when nearly exhausted
-  gameState.kiaiPool = pool;
-  gameState.kiaiIdx = 0;
-  gameState.kiaiScore = 0;
-  gameState.kiaiStreak = 0;
-  gameState.kiaiTotal = 0;
-  gameState.kiaiLife = 3; // 3 lives
-  gameState.score = 0;
-  gameState.total = 0;
-  gameState.id = 'kiai-round';
-  gameState._localStats = null;
-  renderKiai();
+async function setupKiai() {
+  document.getElementById('game-area').innerHTML = `
+    <div class="question-card fade-in" style="text-align:center;">
+      <div class="spinner"></div>
+      <div style="color:rgba(245,237,224,0.6);font-size:15px;">
+        Cargando ronda de Kiai...
+      </div>
+    </div>
+  `;
+
+  try {
+    const terms = await getOnlineGlossaryForUser();
+
+    if (terms.length < 8) {
+      throw new Error('No hay suficiente vocabulario.');
+    }
+
+    gameState.kiaiPool = shuffle(terms);
+    gameState.kiaiIdx = 0;
+    gameState.kiaiScore = 0;
+    gameState.kiaiStreak = 0;
+    gameState.kiaiTotal = 0;
+    gameState.kiaiLife = 3;
+    gameState.score = 0;
+    gameState.total = 0;
+    gameState.id = 'kiai-round';
+    gameState._localStats = null;
+
+    renderKiai();
+  } catch (e) {
+    console.error(e);
+    document.getElementById('game-area').innerHTML = `
+      <div class="question-card fade-in" style="text-align:center;">
+        <div class="question-text">No se pudo cargar la Ronda de Kiai.</div>
+        <button class="btn secondary" style="max-width:220px;margin-top:20px;" onclick="exitGame()">
+          ${t('back_dojo')}
+        </button>
+      </div>
+    `;
+  }
 }
+
 
 function renderKiai() {
   if (gameState.kiaiLife <= 0) {
