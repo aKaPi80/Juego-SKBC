@@ -11,25 +11,28 @@
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&family=Noto+Serif+JP:wght@300;400;700&display=swap');
 
 :root {
-–ink: #1a1410;
-–parchment: #f5ede0;
-–gold: #b8882a;
-color-scheme: dark;
-–gold-light: #d4a847;
-–red: #8b1a1a;
-–red-light: #c0392b;
-–grey: #4a3f35;
-–mist: #e8ddd0;
-–white-belt: #f0ece4;
-–yellow-belt: #d4a017;
-–orange-belt: #d4621a;
-–green-belt: #2d6a3f;
-–blue-belt: #1a3a6a;
-–brown-belt: #5c3317;
-–black-belt: #1a1410;
+  --ink: #1a1410;
+  --parchment: #f5ede0;
+  --gold: #b8882a;
+  --gold-light: #d4a847;
+  --red: #8b1a1a;
+  --red-light: #c0392b;
+  --grey: #4a3f35;
+  --mist: #e8ddd0;
+  --muted: rgba(245,237,224,0.5);
+  --white-belt: #f0ece4;
+  --yellow-belt: #d4a017;
+  --orange-belt: #d4621a;
+  --green-belt: #2d6a3f;
+  --blue-belt: #1a3a6a;
+  --brown-belt: #5c3317;
+  --black-belt: #1a1410;
+  color-scheme: dark;
 }
 
-- { margin: 0; padding: 0; box-sizing: border-box; }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
 
 body {
 font-family: ‘Crimson Pro’, Georgia, ‘Times New Roman’, serif;
@@ -97,7 +100,7 @@ margin-bottom: 40px;
 .kanji-title {
 font-family: ‘Noto Serif JP’, ‘Hiragino Mincho ProN’, ‘Yu Mincho’, serif;
 font-size: 72px;
-color: var(–gold);
+color: var(–-gold);
 text-shadow: 0 0 40px rgba(184,136,42,0.4);
 letter-spacing: 8px;
 line-height: 1;
@@ -115,7 +118,7 @@ margin-top: 8px;
 font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif;
 font-size: 11px;
 letter-spacing: 4px;
-color: var(–gold);
+color: var(–-gold);
 margin-top: 12px;
 opacity: 0.8;
 }
@@ -123,7 +126,7 @@ opacity: 0.8;
 .divider {
 width: 120px;
 height: 1px;
-background: linear-gradient(90deg, transparent, var(–gold), transparent);
+background: linear-gradient(90deg, transparent, var(–-gold), transparent);
 margin: 20px auto;
 }
 
@@ -141,7 +144,7 @@ width: 100%;
 font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif;
 font-size: 14px;
 letter-spacing: 3px;
-color: var(–gold);
+color: var(–-gold);
 text-align: center;
 margin-bottom: 28px;
 text-transform: uppercase;
@@ -169,14 +172,14 @@ border-radius: 2px;
 outline: none;
 transition: border-color 0.2s;
 }
-input:focus, select:focus { border-color: var(–gold); }
+input:focus, select:focus { border-color: var(–-gold); }
 select option { background: #1a1410; }
 
 .btn {
 width: 100%;
 padding: 14px;
-background: var(–red);
-color: var(–parchment);
+background: var(–-red);
+color: var(–-parchment);
 border: none;
 font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif;
 font-size: 12px;
@@ -187,20 +190,20 @@ border-radius: 2px;
 transition: background 0.2s, transform 0.1s;
 margin-top: 8px;
 }
-.btn:hover { background: var(–red-light); }
+.btn:hover { background: var(–-red-light); }
 .btn:active { transform: scale(0.99); }
 .btn.secondary {
 background: transparent;
 border: 1px solid rgba(184,136,42,0.4);
-color: var(–gold);
+color: var(–-gold);
 margin-top: 10px;
 }
 .btn.secondary:hover { background: rgba(184,136,42,0.1); }
 .btn.gold {
-background: var(–gold);
-color: var(–ink);
+background: var(–-gold);
+color: var(–-ink);
 }
-.btn.gold:hover { background: var(–gold-light); }
+.btn.gold:hover { background: var(–-gold-light); }
 
 .error-msg {
 color: #e74c3c;
@@ -217,7 +220,7 @@ font-size: 13px;
 color: #a09080;
 }
 .toggle-link a {
-color: var(–gold);
+color: var(–-gold);
 cursor: pointer;
 text-decoration: none;
 }
@@ -240,7 +243,7 @@ z-index: 100;
 .top-bar-left {
 font-family: ‘Noto Serif JP’, ‘Hiragino Mincho ProN’, ‘Yu Mincho’, serif;
 font-size: 24px;
-color: var(–gold);
+color: var(–-gold);
 text-shadow: 0 0 20px rgba(184,136,42,0.3);
 }
 
@@ -276,7 +279,7 @@ margin-left: 8px;
 padding: 8px 16px;
 background: transparent;
 border: 1px solid rgba(184,136,42,0.3);
-color: var(–gold);
+color: var(–-gold);
 font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif;
 font-size: 10px;
 letter-spacing: 2px;
@@ -307,7 +310,7 @@ padding: 40px 20px 32px;
 .welcome-header h1 {
 font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif;
 font-size: 28px;
-color: var(–gold);
+color: var(–-gold);
 margin-bottom: 8px;
 }
 
@@ -329,7 +332,7 @@ margin-top: 16px;
 font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif;
 font-size: 13px;
 letter-spacing: 2px;
-color: var(–parchment);
+color: var(–-parchment);
 }
 
 /* ─── STATS ROW ─── */
@@ -354,7 +357,7 @@ text-align: center;
 .stat-num {
 font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif;
 font-size: 36px;
-color: var(–gold);
+color: var(–-gold);
 line-height: 1;
 }
 
@@ -420,7 +423,7 @@ display: block;
 .game-card h3 {
 font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif;
 font-size: 14px;
-color: var(–gold);
+color: var(–-gold);
 margin-bottom: 8px;
 }
 
@@ -460,7 +463,7 @@ background: rgba(0,0,0,0.2);
 .game-title {
 font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif;
 font-size: 18px;
-color: var(–gold);
+color: var(–-gold);
 }
 
 .progress-bar-wrap {
@@ -474,7 +477,7 @@ overflow: hidden;
 
 .progress-bar-fill {
 height: 100%;
-background: linear-gradient(90deg, var(–red), var(–gold));
+background: linear-gradient(90deg, var(–-red), var(–-gold));
 border-radius: 2px;
 transition: width 0.4s ease;
 }
@@ -482,7 +485,7 @@ transition: width 0.4s ease;
 .score-display {
 font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif;
 font-size: 14px;
-color: var(–gold);
+color: var(–-gold);
 }
 
 .game-area {
@@ -512,14 +515,14 @@ margin-bottom: 16px;
 .question-text {
 font-size: 22px;
 line-height: 1.5;
-color: var(–parchment);
+color: var(–-parchment);
 margin-bottom: 8px;
 }
 
 .question-kanji {
 font-family: ‘Noto Serif JP’, ‘Hiragino Mincho ProN’, ‘Yu Mincho’, serif;
 font-size: 32px;
-color: var(–gold);
+color: var(–-gold);
 margin-bottom: 4px;
 }
 
@@ -538,7 +541,7 @@ gap: 12px;
 .option-btn {
 background: rgba(245,237,224,0.05);
 border: 1px solid rgba(184,136,42,0.2);
-color: var(–parchment);
+color: var(–-parchment);
 padding: 18px 20px;
 text-align: left;
 font-family: ‘Crimson Pro’, Georgia, ‘Times New Roman’, serif;
@@ -559,14 +562,14 @@ color: #7ddf9e;
 }
 .option-btn.wrong {
 background: rgba(139,26,26,0.3);
-border-color: var(–red);
+border-color: var(–-red);
 color: #e07070;
 }
 .option-btn:disabled { cursor: default; }
 
 .feedback-box {
 background: rgba(245,237,224,0.04);
-border-left: 3px solid var(–gold);
+border-left: 3px solid var(–-gold);
 padding: 16px 20px;
 margin-top: 20px;
 font-size: 15px;
@@ -613,9 +616,9 @@ font-size: 15px;
 transition: all 0.2s;
 }
 .match-item:hover { border-color: rgba(184,136,42,0.5); background: rgba(184,136,42,0.08); }
-.match-item.selected { border-color: var(–gold); background: rgba(184,136,42,0.15); }
+.match-item.selected { border-color: var(–-gold); background: rgba(184,136,42,0.15); }
 .match-item.matched-correct { border-color: #2d6a3f; background: rgba(45,106,63,0.2); color: #7ddf9e; cursor: default; }
-.match-item.matched-wrong { border-color: var(–red); background: rgba(139,26,26,0.2); color: #e07070; }
+.match-item.matched-wrong { border-color: var(–-red); background: rgba(139,26,26,0.2); color: #e07070; }
 
 /* ─── FLASHCARD ─── */
 .flashcard-wrap {
@@ -667,7 +670,7 @@ padding: 48px 32px;
 .results-score {
 font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif;
 font-size: 80px;
-color: var(–gold);
+color: var(–-gold);
 line-height: 1;
 }
 
@@ -710,7 +713,7 @@ margin-bottom: 4px;
 .student-list-item:hover { background: rgba(245,237,224,0.04); }
 .student-list-item.active { background: rgba(184,136,42,0.08); border-color: rgba(184,136,42,0.2); }
 
-.student-name { font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif; font-size: 14px; color: var(–parchment); }
+.student-name { font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif; font-size: 14px; color: var(–-parchment); }
 .student-grade-tag {
 font-size: 11px;
 color: rgba(245,237,224,0.4);
@@ -742,7 +745,7 @@ margin-bottom: 24px;
 .detail-name {
 font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif;
 font-size: 24px;
-color: var(–gold);
+color: var(–-gold);
 }
 
 .detail-meta {
@@ -796,7 +799,7 @@ font-family: ‘Noto Serif JP’, ‘Hiragino Mincho ProN’, ‘Yu Mincho’, s
 font-size: 18px;
 transition: all 0.15s;
 }
-.tile:hover { background: rgba(184,136,42,0.15); border-color: var(–gold); }
+.tile:hover { background: rgba(184,136,42,0.15); border-color: var(–-gold); }
 .tile.used { opacity: 0.3; cursor: default; }
 
 /* ─── TIMELINE ─── */
@@ -837,7 +840,7 @@ max-width: 500px;
 width: 90%;
 text-align: center;
 }
-.modal h3 { font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif; font-size: 20px; color: var(–gold); margin-bottom: 16px; }
+.modal h3 { font-family: ‘Cinzel’, ‘Palatino Linotype’, Palatino, serif; font-size: 20px; color: var(–-gold); margin-bottom: 16px; }
 .modal p { font-size: 16px; color: rgba(245,237,224,0.6); margin-bottom: 24px; }
 .modal-btns { display: flex; gap: 12px; justify-content: center; }
 
@@ -845,7 +848,7 @@ text-align: center;
 .spinner {
 width: 40px; height: 40px;
 border: 3px solid rgba(184,136,42,0.2);
-border-top-color: var(–gold);
+border-top-color: var(–-gold);
 border-radius: 50%;
 animation: spin 0.8s linear infinite;
 margin: 20px auto;
@@ -882,7 +885,7 @@ left: 50%;
 transform: translateX(-50%);
 background: #2a1f14;
 border: 1px solid rgba(184,136,42,0.3);
-color: var(–parchment);
+color: var(–-parchment);
 padding: 6px 12px;
 font-size: 12px;
 white-space: nowrap;
@@ -897,8 +900,8 @@ position: fixed;
 top: 80px;
 right: 24px;
 background: #2a1f14;
-border: 1px solid var(–gold);
-color: var(–parchment);
+border: 1px solid var(–-gold);
+color: var(–-parchment);
 padding: 14px 20px;
 border-radius: 3px;
 font-size: 14px;
@@ -910,17 +913,17 @@ transition: all 0.3s;
 .notification.show { opacity: 1; transform: none; }
 
 /* ─── SELECT BELT COLOR ─── */
-.belt-5kyu { background: var(–yellow-belt); }
-.belt-4kyu { background: linear-gradient(90deg, var(–yellow-belt) 50%, var(–orange-belt) 50%); }
-.belt-3kyu { background: var(–orange-belt); }
-.belt-2kyu { background: linear-gradient(90deg, var(–orange-belt) 50%, var(–green-belt) 50%); }
-.belt-1kyu-s { background: var(–green-belt); }
-.belt-1kyu { background: linear-gradient(90deg, var(–green-belt) 50%, var(–blue-belt) 50%); }
-.belt-shodan { background: linear-gradient(90deg, var(–blue-belt) 50%, var(–brown-belt) 50%); }
-.belt-nidan { background: var(–black-belt); }
-.belt-sandan { background: var(–black-belt); }
-.belt-yondan { background: var(–black-belt); }
-.belt-godan { background: var(–black-belt); }
+.belt-5kyu { background: var(–-yellow-belt); }
+.belt-4kyu { background: linear-gradient(90deg, var(–-yellow-belt) 50%, var(–-orange-belt) 50%); }
+.belt-3kyu { background: var(–-orange-belt); }
+.belt-2kyu { background: linear-gradient(90deg, var(–-orange-belt) 50%, var(–-green-belt) 50%); }
+.belt-1kyu-s { background: var(–-green-belt); }
+.belt-1kyu { background: linear-gradient(90deg, var(–-green-belt) 50%, var(–-blue-belt) 50%); }
+.belt-shodan { background: linear-gradient(90deg, var(–-blue-belt) 50%, var(–-brown-belt) 50%); }
+.belt-nidan { background: var(–-black-belt); }
+.belt-sandan { background: var(–-black-belt); }
+.belt-yondan { background: var(–-black-belt); }
+.belt-godan { background: var(–-black-belt); }
 
 /* Dan markers */
 .belt-sandan::after, .belt-yondan::after, .belt-godan::after {
@@ -932,7 +935,8 @@ background: repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(
 
 /* ═══ ANDROID WEBVIEW CONTRAST FIXES ═══ */
 
-- { box-sizing: border-box; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
   .kanji-bg { color: rgba(255,255,255,0.03) !important; -webkit-text-fill-color: rgba(255,255,255,0.03) !important; opacity: 0.35 !important; }
   html, body { color: #f5ede0 !important; background: #1a1410 !important; }
   p, div, span, h1, h2, h3, h4, label, td, th, li {
@@ -1084,7 +1088,7 @@ background: repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(
   </div>
 </div>
 <div class="games-grid fade-in" id="games-grid"></div>
-```
+
 
   </div>
 </div>
@@ -2449,14 +2453,57 @@ const Q_SHAKUJO = [
 ];
 
 const Q_SKBC = [
-  { q: '¿En qué ciudad entrena el SKBC Gipuzkoa?', a: 'Gainberri, Tolosa (Gipuzkoa)', opts: ['Gainberri, Tolosa (Gipuzkoa)', 'Donostia-San Sebastián', 'Bilbao', 'Irun'], explain: 'El SKBC Gipuzkoa entrena en Gainberri, en Tolosa, Gipuzkoa.', grade: '5kyu' },
-  { q: '¿En qué año y mes se fundó el SKBC Gipuzkoa?', a: 'Octubre de 2023', opts: ['Octubre de 2023', 'Enero de 2020', 'Septiembre de 2019', 'Marzo de 2022'], explain: 'El SKBC Gipuzkoa fue fundado en octubre de 2023 en Tolosa.', grade: '5kyu' },
-  { q: '¿Qué significan las siglas SKBC?', a: 'Shorinji Kempo Basque Country', opts: ['Shorinji Kempo Basque Country', 'Shorinji Kempo Branch Club', 'Shorinji Kempo Basque Center', 'Shorinji Kempo Budo Club'],
-  { q: '¿A qué federación está afiliado el SKBC Gipuzkoa?', a: 'IKA (International Kempo Association)', opts: ['IKA (International Kempo Association)', 'FESK (Federación Española de Shorinji Kempo)', 'WSKO directamente', 'Ninguna federación'], explain: 'El SKBC Gipuzkoa está afiliado a la IKA — British Shorinji Kempo Federation — siguiendo la tradición del Shorinji Kempo en el Reino Unido.', grade: '5kyu' },
-  { q: '¿En qué territorio histórico está Tolosa, donde entrena el SKBC Gipuzkoa?', a: 'Gipuzkoa (País Vasco)', opts: ['Gipuzkoa (País Vasco)', 'Bizkaia (País Vasco)', 'Álava (País Vasco)', 'Navarra'], explain: 'Tolosa está en Gipuzkoa, uno de los tres territorios históricos del País Vasco. ¡De ahí viene el nombre del club!', grade: '5kyu' },
-  { q: '¿Cómo se dice "Shorinji Kempo" en euskera (el idioma vasco)?', a: 'Se mantiene igual — Shorinji Kempo es japonés', opts: ['Se mantiene igual — Shorinji Kempo es japonés', 'Eskuko Borroka', 'Arte Martzialak', 'Borroka Gipuzkoarra'], explain: 'El nombre "Shorinji Kempo" es japonés y se mantiene igual en todos los idiomas, incluido el euskera. ¡Como el nombre del fundador Doshin So!', grade: '5kyu' },
-  { q: '¿Dónde entrena actualmente el SKBC Gipuzkoa?', a: 'En la escuela deportiva Gainberri de Tolosa', opts: ['En la escuela deportiva Gainberri de Tolosa', 'En un polideportivo municipal de Donostia', 'En el Palacio de los Deportes de Vitoria', 'En el Frontón Ategorrieta de San Sebastián'], explain: 'El SKBC Gipuzkoa entrena en la escuela deportiva Gainberri, situada en Tolosa (Gipuzkoa).', grade: '5kyu' },
+  {
+    q: '¿En qué ciudad entrena el SKBC Gipuzkoa?',
+    a: 'Gainberri, Tolosa (Gipuzkoa)',
+    opts: ['Gainberri, Tolosa (Gipuzkoa)', 'Donostia-San Sebastián', 'Bilbao', 'Irun'],
+    explain: 'El SKBC Gipuzkoa entrena en Gainberri, en Tolosa, Gipuzkoa.',
+    grade: '5kyu'
+  },
+  {
+    q: '¿En qué año y mes se fundó el SKBC Gipuzkoa?',
+    a: 'Octubre de 2023',
+    opts: ['Octubre de 2023', 'Enero de 2020', 'Septiembre de 2019', 'Marzo de 2022'],
+    explain: 'El SKBC Gipuzkoa fue fundado en octubre de 2023 en Tolosa.',
+    grade: '5kyu'
+  },
+  {
+    q: '¿Qué significan las siglas SKBC?',
+    a: 'Shorinji Kempo Basque Country',
+    opts: ['Shorinji Kempo Basque Country', 'Shorinji Kempo Branch Club', 'Shorinji Kempo Basque Center', 'Shorinji Kempo Budo Club'],
+    explain: 'SKBC significa Shorinji Kempo Basque Country.',
+    grade: '5kyu'
+  },
+  {
+    q: '¿A qué federación está afiliado el SKBC Gipuzkoa?',
+    a: 'IKA (International Kempo Association)',
+    opts: ['IKA (International Kempo Association)', 'FESK (Federación Española de Shorinji Kempo)', 'WSKO directamente', 'Ninguna federación'],
+    explain: 'El SKBC Gipuzkoa está afiliado a la IKA — British Shorinji Kempo Federation — siguiendo la tradición del Shorinji Kempo en el Reino Unido.',
+    grade: '5kyu'
+  },
+  {
+    q: '¿En qué territorio histórico está Tolosa, donde entrena el SKBC Gipuzkoa?',
+    a: 'Gipuzkoa (País Vasco)',
+    opts: ['Gipuzkoa (País Vasco)', 'Bizkaia (País Vasco)', 'Álava (País Vasco)', 'Navarra'],
+    explain: 'Tolosa está en Gipuzkoa, uno de los tres territorios históricos del País Vasco. ¡De ahí viene el nombre del club!',
+    grade: '5kyu'
+  },
+  {
+    q: '¿Cómo se dice "Shorinji Kempo" en euskera (el idioma vasco)?',
+    a: 'Se mantiene igual — Shorinji Kempo es japonés',
+    opts: ['Se mantiene igual — Shorinji Kempo es japonés', 'Eskuko Borroka', 'Arte Martzialak', 'Borroka Gipuzkoarra'],
+    explain: 'El nombre "Shorinji Kempo" es japonés y se mantiene igual en todos los idiomas, incluido el euskera.',
+    grade: '5kyu'
+  },
+  {
+    q: '¿Dónde entrena actualmente el SKBC Gipuzkoa?',
+    a: 'En la escuela deportiva Gainberri de Tolosa',
+    opts: ['En la escuela deportiva Gainberri de Tolosa', 'En un polideportivo municipal de Donostia', 'En el Palacio de los Deportes de Vitoria', 'En el Frontón Ategorrieta de San Sebastián'],
+    explain: 'El SKBC Gipuzkoa entrena en la escuela deportiva Gainberri, situada en Tolosa (Gipuzkoa).',
+    grade: '5kyu'
+  }
 ];
+
 
 const Q_TRES_VESSELS = [
   { q: '¿Qué son los "3 Systems" dentro de los 3 Vessels del Shorinji Kempo?', a: 'Los tres sistemas son: entrenamiento técnico (ken), organización comunitaria (kai) y enseñanzas filosóficas (oshi)', opts: ['Los tres sistemas son: entrenamiento técnico (ken), organización comunitaria (kai) y enseñanzas filosóficas (oshi)', 'Goho (técnicas duras), Juho (técnicas suaves) y Kata (formas) — los tres métodos técnicos del sistema', 'Kihon, Hokei y Randori — los tres tipos principales de entrenamiento físico del Shorinji Kempo', 'Cuerpo, mente y espíritu — los tres aspectos del ser humano que desarrolla el Kongo Zen'], explain: 'Los 3 Vessels son: Ken (técnica), Kai (comunidad), Oshi (enseñanza). Los 25 Groups son las familias técnicas.', grade: 'shodan' },
