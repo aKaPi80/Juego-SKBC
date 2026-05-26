@@ -5534,6 +5534,44 @@ function countBy(items, key) {
   }, {});
 }
 
+function getUnifiedTechniqueLibraryRows(data = window._dojoLibraryCache || {}) {
+  const structured = (data.techniques || []).map(item => ({
+    id: item.id,
+    name: item.name,
+    grade: item.grade,
+    category: item.category || 'technique',
+    source: item.source_doc || 'techniques',
+    summary: '',
+    technique_steps: item.technique_steps || []
+  }));
+
+  const seen = new Set(structured.map(item =>
+    `${String(item.name || '').trim().toLowerCase()}|${String(item.grade || '').trim().toLowerCase()}`
+  ));
+
+  const summaries = (data.techniqueSummaries || [])
+    .filter(item => {
+      const key = `${String(item.source_name || item.canonical_name || '').trim().toLowerCase()}|${String(item.grade || '').trim().toLowerCase()}`;
+      return !seen.has(key);
+    })
+    .map(item => ({
+      id: item.id,
+      name: item.source_name || item.canonical_name,
+      grade: item.grade,
+      category: String(item.section || 'technique').toLowerCase(),
+      source: 'technique_summaries',
+      summary: item.summary_es || item.summary || '',
+      technique_steps: []
+    }));
+
+  return [...structured, ...summaries].sort((a, b) => {
+    const ga = gradeOrder(a.grade);
+    const gb = gradeOrder(b.grade);
+    if (ga !== gb) return ga - gb;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
+}
+
 function renderCountChips(counts) {
   return Object.entries(counts)
     .sort((a, b) => a[0].localeCompare(b[0]))
@@ -5588,13 +5626,14 @@ async function showDojoLibraryPanel() {
   try {
     const data = await dbGetDojoLibrarySummary();
     window._dojoLibraryCache = data;
+    const unifiedTechniques = getUnifiedTechniqueLibraryRows(data);
 
     const cards = [
       {
         id: 'techniques',
-        title: 'Técnicas con pasos',
-        total: data.techniques.length,
-        detail: renderCountChips(countBy(data.techniques, 'grade')),
+        title: 'Técnicas',
+        total: unifiedTechniques.length,
+        detail: renderCountChips(countBy(unifiedTechniques, 'grade')),
         action: 'showDojoLibraryList("techniques")'
       },
       {
@@ -5711,9 +5750,9 @@ function showDojoLibraryList(type) {
 
   const config = {
     techniques: {
-      title: 'Técnicas con pasos',
-      rows: data.techniques,
-      render: item => `${item.name} · ${item.grade} · ${item.category || 'technique'} · ${item.source_doc || 'Supabase'}`
+      title: 'Técnicas',
+      rows: getUnifiedTechniqueLibraryRows(data),
+      render: item => `${item.name} · ${item.grade || 'sin grado'} · ${item.category || 'technique'} · ${item.source}${item.summary ? ' · ' + item.summary : ''}`
     },
     techniqueSummaries: {
       title: 'Técnicas resumen',
