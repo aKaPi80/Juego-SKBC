@@ -1994,6 +1994,55 @@ async function dbGetGakkaQuestions(category = null) {
   }).filter(q => q.a && q.opts.length >= 2);
 }
 
+async function dbGetGameQuestions(category = null, gameId = null) {
+  const filters = [
+    'select=id,code,game_id,category,grade,question_es,question_eu,correct_es,correct_eu,wrong1_es,wrong1_eu,wrong2_es,wrong2_eu,wrong3_es,wrong3_eu,explanation_es,explanation_eu,active,source',
+    'active=eq.true'
+  ];
+  if (category) filters.push(`category=eq.${encodeURIComponent(category)}`);
+  if (gameId) filters.push(`game_id=eq.${encodeURIComponent(gameId)}`);
+
+  const rows = await sbFetch(`/game_questions?${filters.join('&')}`) || [];
+
+  return rows.map(q => {
+    const correct = LANG === 'eu' && q.correct_eu ? q.correct_eu : q.correct_es;
+    const wrongs = [
+      LANG === 'eu' && q.wrong1_eu ? q.wrong1_eu : q.wrong1_es,
+      LANG === 'eu' && q.wrong2_eu ? q.wrong2_eu : q.wrong2_es,
+      LANG === 'eu' && q.wrong3_eu ? q.wrong3_eu : q.wrong3_es
+    ].filter(Boolean);
+
+    return {
+      q: LANG === 'eu' && q.question_eu ? q.question_eu : q.question_es,
+      a: correct,
+      opts: [correct, ...wrongs].filter(Boolean),
+      explain: LANG === 'eu' && q.explanation_eu ? q.explanation_eu : q.explanation_es,
+      grade: q.grade,
+      category: q.category,
+      gameId: q.game_id,
+      code: q.code,
+      source: q.source || 'game_questions'
+    };
+  }).filter(q => q.a && q.opts.length >= 2);
+}
+
+async function getOnlineGameQuestionsForUser(category = null, gameId = null) {
+  const questions = await dbGetGameQuestions(category, gameId);
+  const userOrder = gradeOrder(currentUser.grade);
+
+  return questions.filter(q =>
+    !q.grade || gradeOrder(q.grade) <= userOrder
+  );
+}
+
+function mergeOnlineWithFallback(online, fallback) {
+  const onlineText = new Set(online.map(q => (q.q || '').trim().toLowerCase()));
+  return [
+    ...online,
+    ...fallback.filter(q => !onlineText.has((q.q || '').trim().toLowerCase()))
+  ];
+}
+
 async function getOnlineGakkaForUser(category = null) {
   const questions = await dbGetGakkaQuestions(category);
   const userOrder = gradeOrder(currentUser.grade);
@@ -2013,8 +2062,13 @@ async function setupOnlineMCQ(category, fallbackPool, limit = 12) {
   `;
 
   try {
-    const online = await getOnlineGakkaForUser(category);
-    const pool = online.length ? online : getQuestionsForGrade(fallbackPool);
+    const online = [
+      ...await getOnlineGakkaForUser(category),
+      ...await getOnlineGameQuestionsForUser(category)
+    ];
+    const pool = online.length
+      ? mergeOnlineWithFallback(online, getQuestionsForGrade(fallbackPool))
+      : getQuestionsForGrade(fallbackPool);
 
     if (!pool.length) {
       throw new Error('No hay preguntas disponibles.');
@@ -3390,10 +3444,16 @@ function checkSort() {
 async function setupSupervivencia() {
   // Full pool — ALL philosophy questions, no grade filter, truly shuffled
   // Reset session tracker for survival to maximize variety
-  const allQ = shuffle([
+  const fallbackQ = getQuestionsForGrade([
     ...Q_FILOSOFIA, ...Q_FILOSOFIA_EXTRA, ...Q_DAN_GAKKA,
     ...Q_HISTORIA, ...Q_HISTORIA_EXTRA, ...Q_SKBC
   ]);
+  const onlineQ = await getOnlineGameQuestionsForUser(null, 'quiz-filosofia')
+    .catch(e => {
+      console.error('game_questions survival load error:', e);
+      return [];
+    });
+  const allQ = shuffle(onlineQ.length ? mergeOnlineWithFallback(onlineQ, fallbackQ) : fallbackQ);
   // Rotate: put recently-seen at end
   const seenNow = window._shownQuestions || new Set();
   const unseen = allQ.filter(q => !seenNow.has(q.q));
@@ -3878,11 +3938,26 @@ async function endKiai() {
 // ─── QUIZ RELÁMPAGO ───
 let relampago_timer = null;
 
-function setupRelampago() {
-  const all = getQuestionsForGrade([
+async function setupRelampago() {
+  document.getElementById('game-area').innerHTML = `
+    <div class="question-card fade-in" style="text-align:center;">
+      <div class="spinner"></div>
+      <div style="color:rgba(245,237,224,0.6);font-size:15px;">
+        Cargando Quiz Relámpago...
+      </div>
+    </div>
+  `;
+
+  const fallback = getQuestionsForGrade([
     ...Q_FILOSOFIA, ...Q_FILOSOFIA_EXTRA, ...Q_TECNICAS,
     ...Q_HISTORIA, ...Q_HISTORIA_EXTRA, ...Q_SKBC, ...Q_KEIMYAKU
   ]);
+  const online = await getOnlineGameQuestionsForUser(null, 'quiz-relampago')
+    .catch(e => {
+      console.error('game_questions relampago load error:', e);
+      return [];
+    });
+  const all = online.length ? mergeOnlineWithFallback(online, fallback) : fallback;
   const seenNow = window._shownQuestions || new Set();
   const unseen = shuffle(all.filter(q => !seenNow.has(q.q)));
   const seen = shuffle(all.filter(q => seenNow.has(q.q)));
@@ -5286,15 +5361,42 @@ showResults = async function() {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function dbGetDojoLibrarySummary() {
-  const [techniques, glossary, keimyaku, gakka] = await Promise.all([
+  function fixedQuestionRows(source, gameId, category, rows) {
+    return rows.map((q, i) => ({
+      id: `${source}_${i}`,
+      code: `${source}_${i + 1}`,
+      game_id: gameId,
+      category,
+      grade: q.grade || '',
+      question_es: q.q || q.situacion || q.nombre || '',
+      correct_es: q.a || q.principio || q.nombre || '',
+      explanation_es: q.explain || '',
+      source
+    }));
+  }
+
+  const fixedGameQuestions = [
+    ...fixedQuestionRows('Q_FILOSOFIA', 'quiz-filosofia', 'philosophy', Q_FILOSOFIA),
+    ...fixedQuestionRows('Q_FILOSOFIA_EXTRA', 'quiz-filosofia', 'philosophy', Q_FILOSOFIA_EXTRA),
+    ...fixedQuestionRows('Q_DAN_GAKKA', 'quiz-filosofia', 'gakka', Q_DAN_GAKKA),
+    ...fixedQuestionRows('Q_HISTORIA', 'quiz-historia', 'history', Q_HISTORIA),
+    ...fixedQuestionRows('Q_HISTORIA_EXTRA', 'quiz-historia', 'history', Q_HISTORIA_EXTRA),
+    ...fixedQuestionRows('Q_SKBC', 'quiz-historia', 'skbc', Q_SKBC),
+    ...fixedQuestionRows('Q_KEIMYAKU', 'quiz-keimyaku', 'keimyaku', Q_KEIMYAKU),
+    ...fixedQuestionRows('Q_TECNICAS', 'quiz-tecnicas', 'technique', Q_TECNICAS),
+    ...fixedQuestionRows('Q_TECNICAS_EXTRA', 'quiz-tecnicas', 'technique', Q_TECNICAS_EXTRA)
+  ];
+
+  const [techniques, glossary, keimyaku, gakka, gameQuestions] = await Promise.all([
     sbFetch('/techniques?select=id,name,grade,category,source_doc,active,technique_steps(step_order,step_text)&active=eq.true') || [],
     sbFetch('/glossary_terms?select=id,jp,es,eu,category,grade,active&active=eq.true') || [],
     sbFetch('/keimyaku_points?select=id,name,kanji,grade,body_zone_es,body_zone_eu,hint,active&active=eq.true') || [],
-    sbFetch('/gakka_questions?select=id,code,category,grade,question_es,explanation_es,active,gakka_options(option_es,is_correct)&active=eq.true') || []
+    sbFetch('/gakka_questions?select=id,code,category,grade,question_es,explanation_es,active,gakka_options(option_es,is_correct)&active=eq.true') || [],
+    sbFetch('/game_questions?select=id,code,game_id,category,grade,question_es,correct_es,wrong1_es,wrong2_es,wrong3_es,explanation_es,source,active&active=eq.true').catch(() => []) || []
 
   ]);
 
-  return { techniques, glossary, keimyaku, gakka };
+  return { techniques, glossary, keimyaku, gakka, gameQuestions, fixedGameQuestions };
 }
 function getKeimyakuLibraryRows() {
   const rows = window._dojoLibraryCache?.keimyaku || [];
@@ -5441,6 +5543,20 @@ async function showDojoLibraryPanel() {
         total: data.gakka.length,
         detail: renderCountChips(countBy(data.gakka, 'category')),
         action: 'showDojoLibraryList("gakka")'
+      },
+      {
+        id: 'gameQuestions',
+        title: 'Preguntas de juegos',
+        total: data.gameQuestions.length,
+        detail: renderCountChips(countBy(data.gameQuestions, 'game_id')),
+        action: 'showDojoLibraryList("gameQuestions")'
+      },
+      {
+        id: 'fixedGameQuestions',
+        title: 'Preguntas fijas HTML',
+        total: data.fixedGameQuestions.length,
+        detail: renderCountChips(countBy(data.fixedGameQuestions, 'source')),
+        action: 'showDojoLibraryList("fixedGameQuestions")'
       }
     ];
 
@@ -5525,6 +5641,16 @@ function showDojoLibraryList(type) {
       title: 'Preguntas Gakka',
       rows: data.gakka,
       render: item => `${item.question_es} · ${item.category} · ${item.grade}`
+    },
+    gameQuestions: {
+      title: 'Preguntas de juegos',
+      rows: data.gameQuestions,
+      render: item => `${item.question_es} · ${item.game_id} · ${item.category} · ${item.grade || 'sin grado'}`
+    },
+    fixedGameQuestions: {
+      title: 'Preguntas fijas HTML',
+      rows: data.fixedGameQuestions,
+      render: item => `${item.question_es} · ${item.source} · ${item.game_id} · ${item.grade || 'sin grado'}`
     }
   }[type];
 
@@ -5788,6 +5914,66 @@ function fillGlossaryGeneratorFromExisting() {
   document.getElementById('gen-grade').value = term.grade || '5kyu';
 }
 
+function getGameQuestionLibraryRows() {
+  const rows = window._dojoLibraryCache?.gameQuestions || [];
+
+  return rows
+    .slice()
+    .sort((a, b) => {
+      const gameCmp = (a.game_id || '').localeCompare(b.game_id || '');
+      if (gameCmp) return gameCmp;
+      const ga = gradeOrder(a.grade);
+      const gb = gradeOrder(b.grade);
+      if (ga !== gb) return ga - gb;
+      return (a.question_es || '').localeCompare(b.question_es || '');
+    });
+}
+
+function renderGameQuestionPickerHtml() {
+  const questions = getGameQuestionLibraryRows();
+
+  if (!questions.length) {
+    return `
+      <div style="padding:12px;border:1px solid rgba(184,136,42,0.2);color:rgba(245,237,224,0.6);">
+        Todavía no hay preguntas editables en Supabase. Puedes crear una nueva.
+      </div>
+    `;
+  }
+
+  return `
+    <div class="input-group">
+      <label>Pregunta existente</label>
+      <select id="gen-existing-game-question" onchange="fillGameQuestionGeneratorFromExisting()">
+        <option value="">Selecciona una pregunta...</option>
+        ${questions.map(q => `
+          <option value="${q.id}">
+            ${q.game_id} · ${q.grade || 'sin grado'} · ${q.question_es}
+          </option>
+        `).join('')}
+      </select>
+    </div>
+  `;
+}
+
+function fillGameQuestionGeneratorFromExisting() {
+  const id = document.getElementById('gen-existing-game-question')?.value;
+  if (!id) return;
+
+  const q = getGameQuestionLibraryRows().find(x => x.id === id);
+  if (!q) return;
+
+  document.getElementById('gen-code').value = q.code || '';
+  document.getElementById('gen-game-id').value = q.game_id || 'quiz-filosofia';
+  document.getElementById('gen-category').value = q.category || 'general';
+  document.getElementById('gen-grade').value = q.grade || '5kyu';
+  document.getElementById('gen-question').value = q.question_es || '';
+  document.getElementById('gen-correct').value = q.correct_es || '';
+  document.getElementById('gen-wrong1').value = q.wrong1_es || '';
+  document.getElementById('gen-wrong2').value = q.wrong2_es || '';
+  document.getElementById('gen-wrong3').value = q.wrong3_es || '';
+  document.getElementById('gen-explain').value = q.explanation_es || '';
+}
+
 function showSenseiSqlGenerator() {
   const panel = document.getElementById('dojo-library-panel');
   if (!panel) return;
@@ -5807,6 +5993,7 @@ function showSenseiSqlGenerator() {
       <div class="input-group">
         <label>Tipo de contenido</label>
         <select id="sql-gen-type" onchange="renderSqlGeneratorForm()">
+          <option value="game-question">Pregunta de cualquier juego</option>
           <option value="gakka">Pregunta Gakka / Filosofía / Historia</option>
           <option value="glossary">Glosario</option>
           <option value="keimyaku">Keimyaku</option>
@@ -5839,6 +6026,43 @@ function showSenseiSqlGenerator() {
 function renderSqlGeneratorForm() {
   const type = document.getElementById('sql-gen-type').value;
   const form = document.getElementById('sql-generator-form');
+
+  if (type === 'game-question') {
+    const currentMode = document.getElementById('gen-game-question-mode')?.value || 'new';
+
+    form.innerHTML = `
+      <div class="input-group">
+        <label>Modo</label>
+        <select id="gen-game-question-mode" onchange="renderSqlGeneratorForm()">
+          <option value="new" ${currentMode === 'new' ? 'selected' : ''}>Nueva pregunta editable</option>
+          <option value="edit" ${currentMode === 'edit' ? 'selected' : ''}>Modificar pregunta editable existente</option>
+        </select>
+      </div>
+
+      ${currentMode === 'edit' ? renderGameQuestionPickerHtml() : ''}
+
+      <div class="input-group"><label>Código único</label><input id="gen-code" placeholder="ej. survival_hakusetsu_01"></div>
+      <div class="input-group"><label>Juego</label>
+        <select id="gen-game-id">
+          <option value="quiz-filosofia">Supervivencia</option>
+          <option value="quiz-relampago">Quiz Relámpago</option>
+          <option value="quiz-historia">Historia</option>
+          <option value="quiz-keimyaku">Keimyaku</option>
+          <option value="camino-examen">Camino al Examen</option>
+          <option value="general">General / varios juegos</option>
+        </select>
+      </div>
+      <div class="input-group"><label>Categoría</label><input id="gen-category" placeholder="philosophy, history, keimyaku, skbc..."></div>
+      <div class="input-group"><label>Grado</label>${gradeSelectHtml('gen-grade')}</div>
+      <div class="input-group"><label>Pregunta</label><input id="gen-question" placeholder="Pregunta..."></div>
+      <div class="input-group"><label>Respuesta correcta</label><input id="gen-correct" placeholder="Respuesta correcta"></div>
+      <div class="input-group"><label>Respuesta falsa 1</label><input id="gen-wrong1"></div>
+      <div class="input-group"><label>Respuesta falsa 2</label><input id="gen-wrong2"></div>
+      <div class="input-group"><label>Respuesta falsa 3</label><input id="gen-wrong3"></div>
+      <div class="input-group"><label>Explicación</label><input id="gen-explain" placeholder="Explicación breve"></div>
+    `;
+    return;
+  }
 
   if (type === 'gakka') {
   const currentMode = document.getElementById('gen-gakka-mode')?.value || 'new';
@@ -5961,6 +6185,45 @@ function renderSqlGeneratorForm() {
 function generateSenseiSql() {
   const type = document.getElementById('sql-gen-type').value;
   const out = document.getElementById('sql-generator-output');
+
+  if (type === 'game-question') {
+    const code = sqlEscape(document.getElementById('gen-code').value);
+    const gameId = sqlEscape(document.getElementById('gen-game-id').value);
+    const category = sqlEscape(document.getElementById('gen-category').value);
+    const grade = sqlEscape(document.getElementById('gen-grade').value);
+    const question = sqlEscape(document.getElementById('gen-question').value);
+    const correct = sqlEscape(document.getElementById('gen-correct').value);
+    const wrong1 = sqlEscape(document.getElementById('gen-wrong1').value);
+    const wrong2 = sqlEscape(document.getElementById('gen-wrong2').value);
+    const wrong3 = sqlEscape(document.getElementById('gen-wrong3').value);
+    const explain = sqlEscape(document.getElementById('gen-explain').value);
+
+    out.value = `insert into public.game_questions (
+  code, game_id, category, grade,
+  question_es, correct_es, wrong1_es, wrong2_es, wrong3_es,
+  explanation_es, active, source
+)
+values (
+  '${code}', '${gameId}', '${category}', '${grade}',
+  '${question}', '${correct}', '${wrong1}', '${wrong2}', '${wrong3}',
+  '${explain}', true, 'sensei'
+)
+on conflict (code)
+do update set
+  game_id = excluded.game_id,
+  category = excluded.category,
+  grade = excluded.grade,
+  question_es = excluded.question_es,
+  correct_es = excluded.correct_es,
+  wrong1_es = excluded.wrong1_es,
+  wrong2_es = excluded.wrong2_es,
+  wrong3_es = excluded.wrong3_es,
+  explanation_es = excluded.explanation_es,
+  active = true,
+  updated_at = now();`;
+
+    return;
+  }
 
   if (type === 'gakka') {
     const code = sqlEscape(document.getElementById('gen-code').value);
