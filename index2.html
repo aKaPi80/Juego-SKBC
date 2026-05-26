@@ -2912,7 +2912,7 @@ function startGame(gameId) {
   switch(gameId) {
     case 'construye-tecnica': setupConstruyeTecnica(); break;
     case 'camino-examen': setupCaminoExamen(); break;
-    case 'quiz-filosofia': setupOnlineMCQ('philosophy', [...Q_FILOSOFIA, ...Q_FILOSOFIA_EXTRA], 12); break;
+    case 'quiz-filosofia': setupSupervivencia(); break;
     case 'quiz-tecnicas': setupQuizTecnicasOnline(); break;
     case 'quiz-historia': setupOnlineMCQ('history', [...Q_HISTORIA, ...Q_HISTORIA_EXTRA, ...Q_SKBC], 10); break;
     case 'quiz-keimyaku':  setupKeimyakuSimple(); break;
@@ -3409,6 +3409,7 @@ async function setupSupervivencia() {
   gameState.score = 0;
   gameState.total = 0;
   gameState.id = 'quiz-filosofia';
+  gameState._localStats = null;
 
   // Show survival intro
   const topRows = leaderboard.slice(0,5).map((r,i) => {
@@ -3527,45 +3528,28 @@ function checkSupervivencia(btn, idx) {
 
 async function endSupervivencia(survived) {
   const record = gameState.survivalCurrent;
-  const myBest = currentUser ? await dbGetMyBestSurvival(currentUser.id) : 0;
-  const isNewRecord = record > myBest;
+  const totalAnswered = record + (survived ? 0 : 1);
+  const previousBest = SK_getSession().bestSurvival || 0;
+  const isNewRecord = record > previousBest;
 
-  // Save record and stats
-  if (currentUser && record > 0) {
-    await dbSaveSurvivalRecord(currentUser.id, record);
-    await dbUpsertStats(currentUser.id, {
-      games: 1, questions: record + 1,
-      correct: record, rankPts: Math.min(record, 20)
-    });
-    await dbAddHistory(currentUser.id, 'quiz-filosofia', record, record + (survived?0:1),
-      Math.round(record / (record + (survived?0:1)) * 100));
-    if (currentUser._cachedStats) {
-      currentUser._cachedStats.total_games += 1;
-      currentUser._cachedStats.total_questions += record + 1;
-      currentUser._cachedStats.total_correct += record;
-    }
-  }
   // ── Save session stats (localStorage dashboard) ──
-  const survPct = (record + (survived?0:1)) > 0 ? Math.round(record / (record + (survived?0:1)) * 100) : 0;
-  SK_saveSession({
-    games: 1, correct: record, total: record + (survived?0:1),
+  const survPct = totalAnswered > 0 ? Math.round(record / totalAnswered * 100) : 0;
+  const session = SK_saveSession({
+    games: 1, correct: record, total: totalAnswered,
     gameId: 'quiz-filosofia',
     bestSurvival: record,
     perfect: survPct === 100 ? 1 : 0,
     playedEU: LANG==='eu', playedES: LANG==='es'
   });
 
-  const leaderboard = await dbGetSurvivalLeaderboard();
-  const myPos = leaderboard.findIndex(r => r.kenshi_id === currentUser?.id);
-  const topRows = leaderboard.slice(0,5).map((r,i) => {
-    const medal = ['🥇','🥈','🥉','4.','5.'][i];
-    const isMe = r.kenshi_id === currentUser?.id;
-    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(184,136,42,0.1);">
-      <span style="color:var(--gold);font-family:'Cinzel',serif;min-width:28px;">${medal}</span>
-      <span style="flex:1;font-weight:${isMe?'900':'600'};color:${isMe?'var(--gold)':'var(--parchment)'};">${r.name}</span>
-      <span style="font-family:'Cinzel',serif;font-size:20px;color:${isMe?'var(--gold)':'var(--parchment)'};">${r.best_record||0}</span>
-    </div>`;
-  }).join('');
+  const badges = SK_checkBadges(session);
+  if (badges.newlyEarned.length > 0) {
+    badges.newlyEarned.forEach((b, i) => {
+      setTimeout(() => showBadgeNotification(b), i * 900);
+    });
+  }
+
+  gameState._localStats = null;
 
   document.getElementById('game-area').innerHTML = `
     <div class="question-card fade-in" style="text-align:center;padding:32px 24px;">
@@ -3578,18 +3562,69 @@ async function endSupervivencia(survived) {
       <div style="font-family:'Cinzel',serif;font-size:64px;color:var(--gold);font-weight:900;line-height:1;">${record}</div>
       <div style="color:var(--muted);font-size:14px;margin-bottom:4px;">${LANG==='eu'?'galdera zuzen':'correctas seguidas'}</div>
       ${isNewRecord && record>0 ? `<div style="color:#7ecfa0;font-size:13px;margin-bottom:16px;">↑ ${LANG==='eu'?'Errekorra hobetu duzu!':'¡Récord personal mejorado!'}</div>` : ''}
-      ${myPos>=0 ? `<div style="font-size:13px;color:var(--muted);margin-bottom:20px;">${LANG==='eu'?'Dojoan':'En el dojo'}: #${myPos+1}</div>` : ''}
-      ${leaderboard.length ? `
-        <div style="text-align:left;margin-bottom:24px;">
-          <div style="font-size:11px;letter-spacing:3px;color:var(--muted);margin-bottom:8px;">🏆 ${LANG==='eu'?'ERREKORDAK':'RÉCORDS'}</div>
-          ${topRows}
-        </div>` : ''}
+      <div id="survival-save-status" style="font-size:12px;color:var(--muted);margin:10px 0 16px;">
+        ${currentUser ? (LANG==='eu'?'Errekorra gordetzen...':'Guardando récord...') : ''}
+      </div>
+      <div id="survival-leaderboard-block"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
         <button class="btn gold" onclick="setupSupervivencia()">${LANG==='eu'?'Berriro! ⚡':'¡Otra vez! ⚡'}</button>
         <button class="btn secondary" onclick="exitGame()">${t('back_dojo')}</button>
       </div>
     </div>
   `;
+
+  if (currentUser && record > 0) {
+    (async () => {
+      try {
+        await dbSaveSurvivalRecord(currentUser.id, record);
+        await dbUpsertStats(currentUser.id, {
+          games: 1,
+          questions: totalAnswered,
+          correct: record,
+          rankPts: Math.min(record, 20)
+        });
+        await dbAddHistory(currentUser.id, 'quiz-filosofia', record, totalAnswered, survPct);
+        if (currentUser._cachedStats) {
+          currentUser._cachedStats.total_games += 1;
+          currentUser._cachedStats.total_questions += totalAnswered;
+          currentUser._cachedStats.total_correct += record;
+          currentUser._cachedStats.rank_points += Math.min(record, 20);
+        }
+
+        const leaderboard = await dbGetSurvivalLeaderboard();
+        const myPos = leaderboard.findIndex(r => r.kenshi_id === currentUser?.id);
+        const topRows = leaderboard.slice(0,5).map((r,i) => {
+          const medal = ['🥇','🥈','🥉','4.','5.'][i];
+          const isMe = r.kenshi_id === currentUser?.id;
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(184,136,42,0.1);">
+            <span style="color:var(--gold);font-family:'Cinzel',serif;min-width:28px;">${medal}</span>
+            <span style="flex:1;font-weight:${isMe?'900':'600'};color:${isMe?'var(--gold)':'var(--parchment)'};">${r.name}</span>
+            <span style="font-family:'Cinzel',serif;font-size:20px;color:${isMe?'var(--gold)':'var(--parchment)'};">${r.best_record||0}</span>
+          </div>`;
+        }).join('');
+
+        const status = document.getElementById('survival-save-status');
+        if (status) status.textContent = LANG==='eu' ? 'Errekorra gordeta.' : 'Récord guardado.';
+
+        const block = document.getElementById('survival-leaderboard-block');
+        if (block && leaderboard.length) {
+          block.innerHTML = `
+            ${myPos>=0 ? `<div style="font-size:13px;color:var(--muted);margin-bottom:20px;">${LANG==='eu'?'Dojoan':'En el dojo'}: #${myPos+1}</div>` : ''}
+            <div style="text-align:left;margin-bottom:24px;">
+              <div style="font-size:11px;letter-spacing:3px;color:var(--muted);margin-bottom:8px;">🏆 ${LANG==='eu'?'ERREKORDAK':'RÉCORDS'}</div>
+              ${topRows}
+            </div>
+          `;
+        }
+      } catch (e) {
+        console.error('survival save error:', e);
+        const status = document.getElementById('survival-save-status');
+        if (status) status.textContent = LANG==='eu'
+          ? 'Emaitza lokalean gordeta. Sareko sailkapena gero eguneratuko da.'
+          : 'Resultado guardado localmente. El ranking online se actualizará cuando haya conexión.';
+      }
+    })();
+  }
 }
 
 
