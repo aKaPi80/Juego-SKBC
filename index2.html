@@ -2147,11 +2147,12 @@ async function dbAddHistory(kenshiId, gameId, score, total, pct) {
   });
 }
 async function dbGetTechniqueBuilder() {
-  const rows = await sbFetch(
-    '/techniques?select=id,name,grade,category,source_doc,technique_steps(step_order,step_text)&active=eq.true'
-  ) || [];
+  const [techniqueRows, summaryRows] = await Promise.all([
+    sbFetch('/techniques?select=id,name,grade,category,source_doc,technique_steps(step_order,step_text)&active=eq.true').catch(() => []) || [],
+    dbGetTechniqueSummaries().catch(() => [])
+  ]);
 
-  return rows.map(t => ({
+  const structured = techniqueRows.map(t => ({
     nombre: t.name,
     grade: t.grade,
     category: t.category,
@@ -2160,6 +2161,37 @@ async function dbGetTechniqueBuilder() {
       .sort((a, b) => a.step_order - b.step_order)
       .map(s => s.step_text)
   })).filter(t => t.pasos.length >= 2);
+
+  const seen = new Set(structured.map(t => `${String(t.nombre).toLowerCase()}|${t.grade}`));
+  const summaries = summaryRows
+    .filter(t => !seen.has(`${String(t.nombre).toLowerCase()}|${t.grade}`))
+    .map(t => ({
+      nombre: t.nombre,
+      grade: t.grade,
+      category: t.category,
+      sourceDoc: t.sourceDoc,
+      pasos: techniqueSummaryToSteps(t.summaryEs || t.summary)
+    }))
+    .filter(t => t.pasos.length >= 1);
+
+  return [...structured, ...summaries];
+}
+
+async function dbGetTechniqueSummaries() {
+  const rows = await sbFetch(
+    '/technique_summaries?select=id,canonical_name,section,grade,summary,summary_es,source_name'
+  ) || [];
+
+  return rows.map(t => ({
+    id: t.id,
+    nombre: t.source_name || t.canonical_name,
+    canonicalName: t.canonical_name,
+    grade: t.grade,
+    category: String(t.section || 'technique').toLowerCase(),
+    sourceDoc: 'technique_summaries',
+    summary: t.summary,
+    summaryEs: t.summary_es || t.summary
+  }));
 }
 async function dbGetGlossaryTerms() {
   const rows = await sbFetch(
@@ -2187,9 +2219,26 @@ async function getOnlineGlossaryForUser() {
 
 
 function buildTechniqueDescription(tecnica) {
-  return tecnica.pasos
+  return (tecnica.pasos || [])
     .map((paso, i) => `${i + 1}. ${paso}`)
     .join(' ');
+}
+
+function techniqueSummaryToSteps(summary) {
+  const text = String(summary || '').trim();
+  if (!text) return [];
+
+  const normalized = text
+    .replace(/\s+(A:)/g, '||$1')
+    .replace(/\s+(D:)/g, '||$1')
+    .replace(/\s*;\s*/g, '||')
+    .replace(/\.\s+/g, '||');
+
+  return normalized
+    .split('||')
+    .map(part => part.trim())
+    .filter(Boolean)
+    .slice(0, 6);
 }
 
 function getTechniqueOptions(correctName, allTechniques) {
@@ -2203,13 +2252,25 @@ function getTechniqueOptions(correctName, allTechniques) {
 }
 
 async function getOnlineTechniquesForUser() {
-  const onlineTechniques = await dbGetTechniqueBuilder();
+  let onlineTechniques = [];
+  try {
+    onlineTechniques = await dbGetTechniqueBuilder();
+  } catch (e) {
+    console.warn('No se pudieron cargar técnicas Supabase; usando fuentes alternativas.', e);
+  }
+  const sourceTechniques = onlineTechniques.length ? onlineTechniques : TECNICA_BUILDER.map(t => ({
+    nombre: t.nombre,
+    grade: t.grade,
+    category: t.category || 'technique',
+    sourceDoc: 'HTML fijo',
+    pasos: t.pasos || []
+  }));
   const userOrder = gradeOrder(currentUser.grade);
 
-  return onlineTechniques.filter(t =>
+  return sourceTechniques.filter(t =>
     gradeOrder(t.grade) <= userOrder &&
     t.pasos &&
-    t.pasos.length >= 2
+    t.pasos.length >= 1
   );
 }
 
@@ -4812,10 +4873,7 @@ async function setupConstruyeTecnica() {
   `;
 
   try {
-    const onlineTechniques = await dbGetTechniqueBuilder();
-
-    const userOrder = gradeOrder(currentUser.grade);
-    const eligible = onlineTechniques.filter(t => gradeOrder(t.grade) <= userOrder);
+    const eligible = await getOnlineTechniquesForUser();
 
     if (!eligible.length) {
       throw new Error('No hay técnicas disponibles para tu grado.');
@@ -5361,6 +5419,20 @@ showResults = async function() {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function dbGetDojoLibrarySummary() {
+  function fixedTechniqueRows(rows) {
+    return rows.map((t, i) => ({
+      id: `TECNICA_BUILDER_${i}`,
+      name: t.nombre || '',
+      grade: t.grade || '',
+      category: t.category || 'technique',
+      source_doc: 'HTML fijo',
+      technique_steps: (t.pasos || []).map((step, stepIndex) => ({
+        step_order: stepIndex + 1,
+        step_text: step
+      }))
+    }));
+  }
+
   function fixedQuestionRows(source, gameId, category, rows) {
     return rows.map((q, i) => ({
       id: `${source}_${i}`,
@@ -5386,9 +5458,11 @@ async function dbGetDojoLibrarySummary() {
     ...fixedQuestionRows('Q_TECNICAS', 'quiz-tecnicas', 'technique', Q_TECNICAS),
     ...fixedQuestionRows('Q_TECNICAS_EXTRA', 'quiz-tecnicas', 'technique', Q_TECNICAS_EXTRA)
   ];
+  const fixedTechniques = fixedTechniqueRows(TECNICA_BUILDER);
 
-  const [techniques, glossary, keimyaku, gakka, gameQuestions] = await Promise.all([
+  const [techniques, techniqueSummaries, glossary, keimyaku, gakka, gameQuestions] = await Promise.all([
     sbFetch('/techniques?select=id,name,grade,category,source_doc,active,technique_steps(step_order,step_text)&active=eq.true') || [],
+    sbFetch('/technique_summaries?select=id,canonical_name,section,grade,summary,summary_es,source_name').catch(() => []) || [],
     sbFetch('/glossary_terms?select=id,jp,es,eu,category,grade,active&active=eq.true') || [],
     sbFetch('/keimyaku_points?select=id,name,kanji,grade,body_zone_es,body_zone_eu,hint,active&active=eq.true') || [],
     sbFetch('/gakka_questions?select=id,code,category,grade,question_es,explanation_es,active,gakka_options(option_es,is_correct)&active=eq.true') || [],
@@ -5396,7 +5470,7 @@ async function dbGetDojoLibrarySummary() {
 
   ]);
 
-  return { techniques, glossary, keimyaku, gakka, gameQuestions, fixedGameQuestions };
+  return { techniques, techniqueSummaries, fixedTechniques, glossary, keimyaku, gakka, gameQuestions, fixedGameQuestions };
 }
 function getKeimyakuLibraryRows() {
   const rows = window._dojoLibraryCache?.keimyaku || [];
@@ -5518,10 +5592,24 @@ async function showDojoLibraryPanel() {
     const cards = [
       {
         id: 'techniques',
-        title: 'Técnicas',
+        title: 'Técnicas con pasos',
         total: data.techniques.length,
         detail: renderCountChips(countBy(data.techniques, 'grade')),
         action: 'showDojoLibraryList("techniques")'
+      },
+      {
+        id: 'techniqueSummaries',
+        title: 'Técnicas resumen',
+        total: data.techniqueSummaries.length,
+        detail: renderCountChips(countBy(data.techniqueSummaries, 'grade')),
+        action: 'showDojoLibraryList("techniqueSummaries")'
+      },
+      {
+        id: 'fixedTechniques',
+        title: 'Técnicas fijas HTML',
+        total: data.fixedTechniques.length,
+        detail: renderCountChips(countBy(data.fixedTechniques, 'grade')),
+        action: 'showDojoLibraryList("fixedTechniques")'
       },
       {
         id: 'glossary',
@@ -5623,9 +5711,19 @@ function showDojoLibraryList(type) {
 
   const config = {
     techniques: {
-      title: 'Técnicas',
+      title: 'Técnicas con pasos',
       rows: data.techniques,
-      render: item => `${item.name} · ${item.grade} · ${item.category || 'technique'}`
+      render: item => `${item.name} · ${item.grade} · ${item.category || 'technique'} · ${item.source_doc || 'Supabase'}`
+    },
+    techniqueSummaries: {
+      title: 'Técnicas resumen',
+      rows: data.techniqueSummaries,
+      render: item => `${item.source_name || item.canonical_name} · ${item.grade || 'sin grado'} · ${item.section || 'sin sección'} · ${item.summary_es || item.summary || ''}`
+    },
+    fixedTechniques: {
+      title: 'Técnicas fijas HTML',
+      rows: data.fixedTechniques,
+      render: item => `${item.name} · ${item.grade} · ${item.category || 'technique'} · ${(item.technique_steps || []).length} pasos`
     },
     glossary: {
       title: 'Glosario',
