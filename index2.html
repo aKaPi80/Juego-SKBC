@@ -1405,6 +1405,7 @@ function SK_saveSession(delta) {
     bestSurvival:Math.max(s.bestSurvival || 0, delta.bestSurvival || 0),
     bestKiai:    Math.max(s.bestKiai || 0, delta.bestKiai || 0),
     bestKeimyaku:Math.max(s.bestKeimyaku || 0, delta.bestKeimyaku || 0),
+    bestDojoRush:Math.max(s.bestDojoRush || 0, delta.bestDojoRush || 0),
     perfect:     (s.perfect || 0) + (delta.perfect || 0),
     playedEU:    s.playedEU || delta.playedEU || false,
     playedES:    s.playedES || delta.playedES || false,
@@ -1525,6 +1526,7 @@ showResults = async function() {
   if (gameState.id === 'quiz-filosofia') sessionDelta.bestSurvival = Math.max(s.bestSurvival||0, gameState.survivalCurrent||0);
   if (gameState.id === 'kiai-round') sessionDelta.bestKiai = Math.max(s.bestKiai||0, gameState.kiaiScore||0);
   if (gameState.id === 'quiz-keimyaku') sessionDelta.bestKeimyaku = Math.max(s.bestKeimyaku||0, pct);
+  if (gameState.id === 'dojo-rush') sessionDelta.bestDojoRush = Math.max(s.bestDojoRush||0, gameState.rushPoints||0);
   if (LANG === 'eu') sessionDelta.playedEU = true;
   if (LANG === 'es') sessionDelta.playedES = true;
   SK_saveSession(sessionDelta);
@@ -2413,6 +2415,10 @@ function exitGame() {
     clearInterval(relampago_timer);
     relampago_timer = null;
   }
+  if (typeof dojoRushTimer !== 'undefined' && dojoRushTimer) {
+    clearInterval(dojoRushTimer);
+    dojoRushTimer = null;
+  }
   // Save partial stats if game abandoned mid-way
   if (currentUser && currentUser.id && gameState.id && gameState._localStats) {
     const ls = gameState._localStats;
@@ -2550,6 +2556,7 @@ async function renderMain() {
 function getAvailableGames() {
   const order = gradeOrder(currentUser.grade);
   const games = [
+    { id: 'dojo-rush', icon: '⚡', name: 'Dojo Rush', desc: '60 segundos de reflejos: técnicas, keimyaku, filosofía y vocabulario mezclados a máxima velocidad.', tag: 'Arcade · Combo' },
     { id: 'construye-tecnica', icon: '🧩', name: 'Construye la Técnica', desc: 'Ordena los pasos de cada técnica: ataque, defensa, evasión y contraataque.', tag: 'Técnica · Secuencia'},
     { id: 'camino-examen', icon: '🥋', name: 'Camino al Examen', desc: 'Supera pruebas de técnica, keimyaku, gakka y vocabulario para preparar tu siguiente grado.', tag: 'Grading Quest' },
     { id: 'quiz-filosofia',   icon: '⚡', name: t('game_filosofia_name'), desc: t('game_filosofia_desc'), tag: t('game_filosofia_tag') },
@@ -3005,10 +3012,15 @@ function startGame(gameId) {
     clearInterval(relampago_timer);
     relampago_timer = null;
   }
+  if (typeof dojoRushTimer !== 'undefined' && dojoRushTimer) {
+    clearInterval(dojoRushTimer);
+    dojoRushTimer = null;
+  }
   showScreen('screen-game');
   gameState = { id: gameId, score: 0, total: 0, current: 0, questions: [], answered: false };
 
   const titleMap = {
+    'dojo-rush': '⚡ Dojo Rush',
     'construye-tecnica': '🧩 Construye la Técnica',
     'camino-examen': '🥋 Camino al Examen',
     'quiz-filosofia': '⚡ Supervivencia',
@@ -3025,6 +3037,7 @@ function startGame(gameId) {
   document.getElementById('game-title-display').textContent = titleMap[gameId] || gameId;
 
   switch(gameId) {
+    case 'dojo-rush': setupDojoRush(); break;
     case 'construye-tecnica': setupConstruyeTecnica(); break;
     case 'camino-examen': setupCaminoExamen(); break;
     case 'quiz-filosofia': setupSupervivencia(); break;
@@ -5075,6 +5088,273 @@ function nextConstruyeTecnica() {
   renderConstruyeTecnica();
 }
 
+// ─── DOJO RUSH ───
+let dojoRushTimer = null;
+
+function makeRushMCQ(kind, label, q) {
+  return {
+    kind,
+    label,
+    q: q.q,
+    a: q.a,
+    opts: q.opts,
+    explain: q.explain || '',
+    grade: q.grade
+  };
+}
+
+function makeRushTechnique(tecnica, allTechniques) {
+  const desc = buildTechniqueDescription(tecnica);
+  return {
+    kind: 'TÉCNICA',
+    label: 'Respuesta técnica',
+    q: desc ? `Lee la secuencia y responde rápido: ${desc}` : `¿Qué técnica es ${tecnica.nombre}?`,
+    a: tecnica.nombre,
+    opts: getTechniqueOptions(tecnica.nombre, allTechniques),
+    explain: `${tecnica.nombre} · ${GRADES[tecnica.grade]?.label || tecnica.grade}`,
+    grade: tecnica.grade
+  };
+}
+
+function makeRushGlossary(term, allTerms) {
+  const wrong = shuffle(allTerms
+    .filter(t => t.jp !== term.jp)
+    .map(t => t.es)
+    .filter(Boolean)
+  ).slice(0, 3);
+
+  return {
+    kind: 'VOCABULARIO',
+    label: 'Traducción',
+    q: `¿Qué significa ${term.jp}?`,
+    a: term.es,
+    opts: shuffle([term.es, ...wrong]),
+    explain: `${term.jp} → ${term.es}`,
+    grade: term.grade
+  };
+}
+
+function makeRushKeimyaku(point, allPoints) {
+  const wrong = shuffle(allPoints
+    .filter(p => p.nombre !== point.nombre)
+    .map(p => p.zona)
+    .filter(Boolean)
+  ).slice(0, 3);
+
+  return {
+    kind: 'KEIMYAKU',
+    label: point.kanji || 'Punto vital',
+    q: `¿Dónde está ${point.nombre}?`,
+    a: point.zona,
+    opts: shuffle([point.zona, ...wrong]),
+    explain: `${point.nombre}: ${point.zona}`,
+    grade: point.grade
+  };
+}
+
+async function buildDojoRushPool() {
+  const fallbackMcq = getQuestionsForGrade([
+    ...Q_FILOSOFIA, ...Q_FILOSOFIA_EXTRA,
+    ...Q_TECNICAS, ...Q_TECNICAS_EXTRA,
+    ...Q_HISTORIA, ...Q_HISTORIA_EXTRA, ...Q_SKBC,
+    ...Q_KEIMYAKU
+  ]).map(q => makeRushMCQ('GAKKA', 'Respuesta rápida', q));
+
+  const onlineRush = await getOnlineGameQuestionsForUser(null, 'dojo-rush')
+    .catch(() => []);
+  const onlineGeneric = await getOnlineGameQuestionsForUser(null, 'quiz-relampago')
+    .catch(() => []);
+
+  const onlineMcq = [...onlineRush, ...onlineGeneric]
+    .map(q => makeRushMCQ('GAKKA', 'Respuesta rápida', q));
+
+  const techniques = await getOnlineTechniquesForUser().catch(() => []);
+  const techniqueRush = techniques.map(t => makeRushTechnique(t, techniques));
+
+  const glossary = await getOnlineGlossaryForUser().catch(() => []);
+  const glossaryRush = glossary.length >= 4
+    ? glossary.map(term => makeRushGlossary(term, glossary))
+    : [];
+
+  const keimyaku = await getOnlineKeimyakuForUser().catch(() => []);
+  const keimyakuRush = keimyaku.length >= 4
+    ? keimyaku.map(point => makeRushKeimyaku(point, keimyaku))
+    : [];
+
+  const pool = [
+    ...onlineMcq,
+    ...fallbackMcq,
+    ...techniqueRush,
+    ...glossaryRush,
+    ...keimyakuRush
+  ].filter(q => q.a && q.opts && q.opts.length >= 2);
+
+  return shuffle(pool);
+}
+
+async function setupDojoRush() {
+  document.getElementById('game-area').innerHTML = `
+    <div class="question-card fade-in" style="text-align:center;">
+      <div class="spinner"></div>
+      <div style="color:rgba(245,237,224,0.6);font-size:15px;">
+        Preparando Dojo Rush...
+      </div>
+    </div>
+  `;
+
+  const pool = await buildDojoRushPool();
+  if (!pool.length) {
+    document.getElementById('game-area').innerHTML = `
+      <div class="question-card fade-in" style="text-align:center;">
+        <div class="question-text">No hay preguntas suficientes para Dojo Rush.</div>
+        <button class="btn secondary" style="max-width:220px;margin-top:20px;" onclick="exitGame()">
+          ${t('back_dojo')}
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  gameState.questions = pool;
+  gameState.total = 0;
+  gameState.score = 0;
+  gameState.current = 0;
+  gameState.answered = false;
+  gameState.rushPoints = 0;
+  gameState.rushCombo = 0;
+  gameState.rushBestCombo = 0;
+  gameState.rushLives = 3;
+  gameState.rushTimeLeft = 60;
+  gameState.rushStartedAt = Date.now();
+
+  renderDojoRush();
+
+  dojoRushTimer = setInterval(() => {
+    gameState.rushTimeLeft--;
+    updateDojoRushHud();
+    if (gameState.rushTimeLeft <= 0) finishDojoRush();
+  }, 1000);
+}
+
+function updateDojoRushHud() {
+  const timeEl = document.getElementById('dojo-rush-time');
+  const pointsEl = document.getElementById('dojo-rush-points');
+  const comboEl = document.getElementById('dojo-rush-combo');
+  const livesEl = document.getElementById('dojo-rush-lives');
+  const barEl = document.getElementById('progress-bar');
+
+  if (timeEl) timeEl.textContent = gameState.rushTimeLeft;
+  if (pointsEl) pointsEl.textContent = gameState.rushPoints;
+  if (comboEl) comboEl.textContent = `x${gameState.rushCombo}`;
+  if (livesEl) livesEl.textContent = '●'.repeat(gameState.rushLives) + '○'.repeat(Math.max(0, 3 - gameState.rushLives));
+  if (barEl) barEl.style.width = `${Math.max(0, gameState.rushTimeLeft) / 60 * 100}%`;
+
+  document.getElementById('score-display').textContent = `${gameState.rushPoints} pts`;
+}
+
+function renderDojoRush() {
+  if (gameState.rushLives <= 0 || gameState.rushTimeLeft <= 0) {
+    finishDojoRush();
+    return;
+  }
+
+  const q = gameState.questions[gameState.current % gameState.questions.length];
+  gameState.currentRushQuestion = q;
+  gameState.answered = false;
+
+  const opts = shuffle([...q.opts]).slice(0, 4);
+  if (!opts.includes(q.a)) {
+    opts[Math.floor(Math.random() * opts.length)] = q.a;
+  }
+  const finalOpts = shuffle(opts);
+  gameState.correctIndex = finalOpts.indexOf(q.a);
+
+  document.getElementById('game-area').innerHTML = `
+    <div class="question-card fade-in" style="padding:24px;border-color:rgba(184,136,42,0.35);">
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;">
+        <div class="stat-card" style="padding:12px;">
+          <div class="stat-num" id="dojo-rush-time" style="font-size:28px;">${gameState.rushTimeLeft}</div>
+          <div class="stat-label">Tiempo</div>
+        </div>
+        <div class="stat-card" style="padding:12px;">
+          <div class="stat-num" id="dojo-rush-points" style="font-size:28px;">${gameState.rushPoints}</div>
+          <div class="stat-label">Puntos</div>
+        </div>
+        <div class="stat-card" style="padding:12px;">
+          <div class="stat-num" id="dojo-rush-combo" style="font-size:28px;">x${gameState.rushCombo}</div>
+          <div class="stat-label">Combo</div>
+        </div>
+        <div class="stat-card" style="padding:12px;">
+          <div class="stat-num" id="dojo-rush-lives" style="font-size:24px;letter-spacing:2px;">${'●'.repeat(gameState.rushLives)}${'○'.repeat(3 - gameState.rushLives)}</div>
+          <div class="stat-label">Vidas</div>
+        </div>
+      </div>
+      <div style="font-family:'Cinzel',serif;font-size:11px;letter-spacing:3px;color:var(--gold);margin-bottom:10px;">
+        ${q.kind} · ${q.label}
+      </div>
+      <div class="question-text" style="font-size:22px;">${q.q}</div>
+      ${gameState.rushCombo >= 5 ? `<div style="margin-top:10px;color:var(--gold);font-family:'Cinzel',serif;font-size:12px;letter-spacing:2px;">KIAI COMBO x${gameState.rushCombo}</div>` : ''}
+    </div>
+    <div class="options-grid">
+      ${finalOpts.map((opt, i) => `
+        <button class="option-btn" onclick="checkDojoRush(this, ${i})" style="color:#d4c4b0;-webkit-text-fill-color:#d4c4b0;">${opt}</button>
+      `).join('')}
+    </div>
+    <div class="feedback-box" id="feedback"></div>
+  `;
+
+  updateDojoRushHud();
+}
+
+function checkDojoRush(btn, selectedIndex) {
+  if (gameState.answered) return;
+  gameState.answered = true;
+
+  const q = gameState.currentRushQuestion;
+  const correct = selectedIndex === gameState.correctIndex;
+
+  document.querySelectorAll('.option-btn').forEach((b, i) => {
+    b.disabled = true;
+    if (i === gameState.correctIndex) b.classList.add('correct');
+  });
+
+  if (correct) {
+    gameState.score++;
+    gameState.rushCombo++;
+    gameState.rushBestCombo = Math.max(gameState.rushBestCombo, gameState.rushCombo);
+    gameState.rushPoints += 100 + Math.min(500, gameState.rushCombo * 25);
+  } else {
+    if (btn) btn.classList.add('wrong');
+    gameState.rushCombo = 0;
+    gameState.rushLives--;
+  }
+
+  gameState.total++;
+  saveGameProgress(correct);
+  updateDojoRushHud();
+
+  const fb = document.getElementById('feedback');
+  if (fb) {
+    fb.style.display = 'block';
+    fb.style.borderColor = correct ? '#2d6a3f' : 'var(--red)';
+    fb.innerHTML = `<strong>${correct ? t('correct_txt') : t('incorrect_txt')}</strong> — ${q.explain || q.a}`;
+  }
+
+  setTimeout(() => {
+    gameState.current++;
+    if (gameState.rushLives <= 0) finishDojoRush();
+    else renderDojoRush();
+  }, correct ? 450 : 900);
+}
+
+function finishDojoRush() {
+  if (dojoRushTimer) {
+    clearInterval(dojoRushTimer);
+    dojoRushTimer = null;
+  }
+  showResults();
+}
+
 // ─── PROGRESS & RESULTS ───
 function updateProgress() {
   const pct = gameState.total > 0 ? (gameState.current / gameState.total) * 100 : 0;
@@ -5103,6 +5383,10 @@ function saveGameProgress(correct, bulkCorrect, bulkTotal) {
 }
 
 async function showResults() {
+  if (typeof dojoRushTimer !== 'undefined' && dojoRushTimer) {
+    clearInterval(dojoRushTimer);
+    dojoRushTimer = null;
+  }
   const pct = gameState.total > 0 ? Math.round(gameState.score / gameState.total * 100) : 0;
   let msg = '';
   if (pct >= 90) msg = t('result_excellent');
@@ -5133,6 +5417,37 @@ async function showResults() {
   }
 
   document.getElementById('progress-bar').style.width = '100%';
+  if (gameState.id === 'dojo-rush') {
+    const rushPoints = gameState.rushPoints || 0;
+    const bestCombo = gameState.rushBestCombo || 0;
+    const answered = gameState.total || 0;
+    const correct = gameState.score || 0;
+
+    document.getElementById('score-display').textContent = `${rushPoints} pts`;
+    document.getElementById('game-area').innerHTML = `
+      <div class="results-card fade-in">
+        <div style="font-family:'Cinzel',serif;font-size:12px;letter-spacing:4px;color:var(--gold);margin-bottom:10px;">
+          DOJO RUSH
+        </div>
+        <div class="results-score">${rushPoints}</div>
+        <div class="results-msg">${bestCombo >= 10 ? 'Kiai imparable.' : bestCombo >= 5 ? 'Buen ritmo de combate.' : 'Calma, precisión y otra ronda.'}</div>
+        <div class="results-detail">
+          ${correct}/${answered} correctas · ${pct}% · combo máximo x${bestCombo}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:520px;margin:0 auto 28px;">
+          <div class="stat-card"><div class="stat-num" style="font-size:28px;">${correct}</div><div class="stat-label">Aciertos</div></div>
+          <div class="stat-card"><div class="stat-num" style="font-size:28px;">${bestCombo}</div><div class="stat-label">Combo</div></div>
+          <div class="stat-card"><div class="stat-num" style="font-size:28px;">${pct}%</div><div class="stat-label">Precisión</div></div>
+        </div>
+        <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+          <button class="btn" style="max-width:200px;" onclick="startGame('dojo-rush')">${t('play_again')}</button>
+          <button class="btn secondary" style="max-width:200px;" onclick="exitGame()">${t('back_dojo')}</button>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
   document.getElementById('game-area').innerHTML = `
     <div class="results-card fade-in">
       <div class="results-score">${pct}%</div>
@@ -5419,17 +5734,29 @@ showResults = async function() {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function dbGetDojoLibrarySummary() {
-  function fixedTechniqueRows(rows) {
+  function fixedTechniqueRows(source, rows) {
     return rows.map((t, i) => ({
-      id: `TECNICA_BUILDER_${i}`,
+      id: `${source}_${i}`,
       name: t.nombre || '',
       grade: t.grade || '',
       category: t.category || 'technique',
-      source_doc: 'HTML fijo',
+      source_doc: source,
       technique_steps: (t.pasos || []).map((step, stepIndex) => ({
         step_order: stepIndex + 1,
         step_text: step
       }))
+    }));
+  }
+
+  function fixedDescriptionTechniqueRows(rows) {
+    return rows.map((t, i) => ({
+      id: `TECNICAS_DESCRIPCION_${i}`,
+      name: t.nombre || '',
+      grade: t.grade || '',
+      category: 'technique',
+      source_doc: 'TECNICAS_DESCRIPCION',
+      summary: t.desc || '',
+      technique_steps: t.desc ? [{ step_order: 1, step_text: t.desc }] : []
     }));
   }
 
@@ -5458,7 +5785,10 @@ async function dbGetDojoLibrarySummary() {
     ...fixedQuestionRows('Q_TECNICAS', 'quiz-tecnicas', 'technique', Q_TECNICAS),
     ...fixedQuestionRows('Q_TECNICAS_EXTRA', 'quiz-tecnicas', 'technique', Q_TECNICAS_EXTRA)
   ];
-  const fixedTechniques = fixedTechniqueRows(TECNICA_BUILDER);
+  const fixedTechniques = [
+    ...fixedTechniqueRows('TECNICA_BUILDER', TECNICA_BUILDER),
+    ...fixedDescriptionTechniqueRows(TECNICAS_DESCRIPCION)
+  ];
 
   const [techniques, techniqueSummaries, glossary, keimyaku, gakka, gameQuestions] = await Promise.all([
     sbFetch('/techniques?select=id,name,grade,category,source_doc,active,technique_steps(step_order,step_text)&active=eq.true') || [],
@@ -5564,7 +5894,33 @@ function getUnifiedTechniqueLibraryRows(data = window._dojoLibraryCache || {}) {
       technique_steps: []
     }));
 
-  return [...structured, ...summaries].sort((a, b) => {
+  const fixed = (data.fixedTechniques || [])
+    .filter(item => {
+      const key = `${String(item.name || '').trim().toLowerCase()}|${String(item.grade || '').trim().toLowerCase()}`;
+      return item.name && !seen.has(key);
+    })
+    .map(item => ({
+      id: item.id,
+      name: item.name,
+      grade: item.grade,
+      category: item.category || 'technique',
+      source: item.source_doc || 'HTML fijo',
+      summary: item.summary || '',
+      technique_steps: item.technique_steps || []
+    }));
+
+  summaries.forEach(item => {
+    seen.add(`${String(item.name || '').trim().toLowerCase()}|${String(item.grade || '').trim().toLowerCase()}`);
+  });
+
+  const uniqueFixed = fixed.filter(item => {
+    const key = `${String(item.name || '').trim().toLowerCase()}|${String(item.grade || '').trim().toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  return [...structured, ...summaries, ...uniqueFixed].sort((a, b) => {
     const ga = gradeOrder(a.grade);
     const gb = gradeOrder(b.grade);
     if (ga !== gb) return ga - gb;
@@ -5614,7 +5970,7 @@ async function showDojoLibraryPanel() {
       padding:16px 20px;display:flex;align-items:center;gap:12px;">
       <button class="btn-sm" onclick="closeDojoLibraryPanel()">← Volver</button>
       <div style="font-family:'Cinzel',serif;font-size:13px;letter-spacing:3px;color:var(--gold);flex:1;text-align:center;">
-        BIBLIOTECA DEL DOJO
+        BIBLIOTECA DEL DOJO · v-tecnicas-2
       </div>
     </div>
     <div style="padding:40px;text-align:center;color:rgba(245,237,224,0.55);">
@@ -5693,7 +6049,7 @@ async function showDojoLibraryPanel() {
         padding:16px 20px;display:flex;align-items:center;gap:12px;">
         <button class="btn-sm" onclick="closeDojoLibraryPanel()">← Volver</button>
         <div style="font-family:'Cinzel',serif;font-size:13px;letter-spacing:3px;color:var(--gold);flex:1;text-align:center;">
-          BIBLIOTECA DEL DOJO
+          BIBLIOTECA DEL DOJO · v-tecnicas-2
         </div>
       </div>
 
