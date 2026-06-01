@@ -109,7 +109,6 @@ async function generateClass(promptOnly) {
     state.modeIndex = 0;
     showClass(state.currentClassText, data.promptOnly);
     renderModeBlock();
-    await loadInitialData();
     activateTab('class');
     toast(data.promptOnly ? 'Prompt guardado.' : 'Clase generada.');
   } catch (error) {
