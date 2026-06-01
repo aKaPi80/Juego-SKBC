@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f7efe1">
+  <title>SKBC Kids AI Sensei</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">SKBC Gipuzkoa</p>
+      <h1>Kids AI Sensei</h1>
+    </div>
+    <button id="refreshBtn" class="icon-btn" type="button" title="Actualizar datos">↻</button>
+  </header>
+
+  <main class="app-shell">
+    <section class="planner-panel" aria-label="Generador de clase infantil">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Mision del dia</p>
+          <h2>Generar clase infantil</h2>
+        </div>
+        <span id="backendStatus" class="status-pill">Sin conectar</span>
+      </div>
+
+      <form id="classForm" class="class-form">
+        <div class="field-grid">
+          <label>
+            Fecha
+            <input id="dateInput" name="fecha" type="date" required>
+          </label>
+          <label>
+            Duracion
+            <select id="durationInput" name="duracion">
+              <option value="45">45 min</option>
+              <option value="60" selected>60 min</option>
+              <option value="75">75 min</option>
+            </select>
+          </label>
+          <label>
+            Clima
+            <select id="weatherInput" name="clima">
+              <option value="normal">Normal</option>
+              <option value="mucho calor">Mucho calor</option>
+              <option value="frio">Frio</option>
+              <option value="lluvia">Lluvia</option>
+            </select>
+          </label>
+          <label>
+            Energia
+            <select id="energyInput" name="energiaGrupo">
+              <option value="baja">Baja</option>
+              <option value="media" selected>Media</option>
+              <option value="alta">Alta</option>
+            </select>
+          </label>
+          <label>
+            Estado grupo
+            <select id="groupStateInput" name="estadoGrupo">
+              <option value="normales" selected>Normales</option>
+              <option value="muy excitados">Muy excitados</option>
+              <option value="cansados">Cansados</option>
+              <option value="dispersos">Dispersos</option>
+              <option value="frustrados">Frustrados</option>
+              <option value="muy motivados">Muy motivados</option>
+            </select>
+          </label>
+          <label>
+            Estilo sensei
+            <select id="senseiStyleInput" name="estiloSensei">
+              <option value="equilibrado" selected>Equilibrado</option>
+              <option value="muy dinamico">Muy dinamico</option>
+              <option value="muy tecnico">Muy tecnico</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          Material disponible
+          <input id="materialInput" name="material" type="text" value="conos, cinturones, colchonetas">
+        </label>
+
+        <label>
+          Espacio
+          <select id="spaceInput" name="espacio">
+            <option value="dojo completo">Dojo completo</option>
+            <option value="medio dojo">Medio dojo</option>
+            <option value="espacio pequeno">Espacio pequeno</option>
+          </select>
+        </label>
+
+        <label>
+          Objetivo opcional
+          <textarea id="goalInput" name="objetivo" rows="2" placeholder="Ej. trabajo en equipo y autocontrol"></textarea>
+        </label>
+
+        <div class="field-grid">
+          <label>
+            Energia sensei
+            <select id="senseiEnergyInput" name="energiaSensei">
+              <option value="alta">Alta</option>
+              <option value="media" selected>Media</option>
+              <option value="baja">Baja</option>
+            </select>
+          </label>
+          <label>
+            Temporada
+            <select id="seasonInput" name="temporada">
+              <option value="auto" selected>Auto por fecha</option>
+              <option value="septiembre-octubre cohesion normas confianza">Sep-Oct cohesion</option>
+              <option value="noviembre-diciembre autonomia cooperacion">Nov-Dic autonomia</option>
+              <option value="enero-febrero perseverancia">Ene-Feb perseverancia</option>
+              <option value="marzo-abril liderazgo">Mar-Abr liderazgo</option>
+              <option value="mayo-junio consolidacion">May-Jun consolidacion</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          Control de grupo
+          <input id="groupControlInput" name="controlGrupo" type="text" value="senal de inicio, senal de parada y reagrupacion rapida">
+        </label>
+
+        <label>
+          Roles de mision
+          <input id="missionRolesInput" name="rolesMision" type="text" value="capitan del dia, guardian de seguridad, maestro de kiai, ayudante de material">
+        </label>
+
+        <div class="students-toolbar">
+          <div>
+            <p class="eyebrow">Asistentes</p>
+            <strong id="selectedCount">0 seleccionados</strong>
+          </div>
+          <input id="studentSearch" type="search" placeholder="Buscar alumno...">
+        </div>
+
+        <div id="studentsGrid" class="students-grid" aria-live="polite"></div>
+
+        <div class="actions-row">
+          <button id="promptBtn" class="secondary-btn" type="button">Solo prompt</button>
+          <button id="generateBtn" class="primary-btn" type="submit">Generar clase</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="result-panel" aria-label="Clase generada">
+      <div class="tabs">
+        <button class="tab active" type="button" data-tab="class">Clase</button>
+        <button class="tab" type="button" data-tab="mode">Modo clase</button>
+        <button class="tab" type="button" data-tab="history">Historial</button>
+      </div>
+
+      <div id="classTab" class="tab-panel active">
+        <div id="emptyState" class="empty-state">
+          <div class="badge-icon">拳</div>
+          <h2>Prepara una clase como una mision</h2>
+          <p>Elige asistentes, clima y objetivo. La clase aparecerá aqui lista para usar desde el iPad o movil.</p>
+        </div>
+        <article id="classOutput" class="class-output hidden"></article>
+      </div>
+
+      <div id="modeTab" class="tab-panel">
+        <div class="mode-header">
+          <button id="prevBlockBtn" class="icon-btn" type="button" title="Anterior">←</button>
+          <div>
+            <p class="eyebrow">Modo clase</p>
+            <h2 id="modeTitle">Sin clase cargada</h2>
+          </div>
+          <button id="nextBlockBtn" class="icon-btn" type="button" title="Siguiente">→</button>
+        </div>
+        <div id="modeCard" class="mode-card">Genera una clase para activar esta vista.</div>
+      </div>
+
+      <div id="historyTab" class="tab-panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Archivo</p>
+            <h2>Ultimas clases</h2>
+          </div>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
