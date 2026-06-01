@@ -244,6 +244,14 @@ async function apiGet(params) {
 }
 
 async function apiPost(body) {
+  if (body.action === 'generateClass') {
+    const url = new URL(getWebAppUrl());
+    url.searchParams.set('action', 'generateClass');
+    url.searchParams.set('payload', JSON.stringify(body.payload || {}));
+    const response = await fetch(url.toString(), { method: 'GET' });
+    return parseApiResponse(response);
+  }
+
   const response = await fetch(getWebAppUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
