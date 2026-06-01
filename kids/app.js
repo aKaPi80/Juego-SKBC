@@ -112,6 +112,7 @@ async function generateClass(promptOnly) {
       showWaitingClass(data.idClase);
       activateTab('class');
       toast('Clase enviada. Preparando...');
+      kickGeneration(data.idClase);
       await pollGeneration(data.idClase);
     }
   } catch (error) {
@@ -163,6 +164,13 @@ async function pollGeneration(idClase) {
     els.generateBtn.textContent = data.status === 'GENERANDO' ? 'Generando...' : 'En cola...';
   }
   throw new Error('La clase sigue preparandose. Pulsa actualizar o revisa el historial en un momento.');
+}
+
+function kickGeneration(idClase) {
+  const url = new URL(getWebAppUrl());
+  url.searchParams.set('action', 'runGeneration');
+  url.searchParams.set('idClase', idClase);
+  fetch(url.toString(), { method: 'GET' }).catch(() => {});
 }
 
 function collectClassData(promptOnly) {
