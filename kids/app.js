@@ -100,17 +100,20 @@ async function generateClass(promptOnly) {
   const payload = collectClassData(promptOnly);
   els.generateBtn.disabled = true;
   els.promptBtn.disabled = true;
-  els.generateBtn.textContent = promptOnly ? 'Creando prompt...' : 'Generando...';
+  els.generateBtn.textContent = promptOnly ? 'Creando prompt...' : 'Enviando...';
 
   try {
-    const data = await apiPost({ action: 'generateClass', payload });
-    state.currentClassText = data.classText || data.prompt || '';
-    state.modeBlocks = splitClassBlocks(state.currentClassText);
-    state.modeIndex = 0;
-    showClass(state.currentClassText, data.promptOnly);
-    renderModeBlock();
-    activateTab('class');
-    toast(data.promptOnly ? 'Prompt guardado.' : 'Clase generada.');
+    if (promptOnly) {
+      const data = await apiGet({ action: 'generateClass', payload: JSON.stringify(payload) });
+      showGeneratedClass(data);
+      toast('Prompt guardado.');
+    } else {
+      const data = await apiGet({ action: 'startGeneration', payload: JSON.stringify(payload) });
+      showWaitingClass(data.idClase);
+      activateTab('class');
+      toast('Clase enviada. Preparando...');
+      await pollGeneration(data.idClase);
+    }
   } catch (error) {
     console.error(error);
     toast(error.message || 'Error al generar la clase.');
@@ -119,6 +122,47 @@ async function generateClass(promptOnly) {
     els.promptBtn.disabled = false;
     els.generateBtn.textContent = 'Generar clase';
   }
+}
+
+function showGeneratedClass(data) {
+  state.currentClassText = data.classText || data.prompt || '';
+  state.modeBlocks = splitClassBlocks(state.currentClassText);
+  state.modeIndex = 0;
+  showClass(state.currentClassText, data.promptOnly);
+  renderModeBlock();
+  activateTab('class');
+}
+
+function showWaitingClass(idClase) {
+  els.emptyState.classList.add('hidden');
+  els.classOutput.classList.remove('hidden');
+  els.classOutput.innerHTML = `
+    <div class="waiting-card">
+      <div class="spinner-dot"></div>
+      <h2>Preparando clase...</h2>
+      <p>Solicitud ${escapeHtml(idClase)} enviada a la IA. Puedes dejar esta pantalla abierta.</p>
+      <p class="muted-note">El movil consultara cada pocos segundos sin mantener una conexion larga.</p>
+    </div>
+  `;
+}
+
+async function pollGeneration(idClase) {
+  const started = Date.now();
+  const maxMs = 180000;
+  while (Date.now() - started < maxMs) {
+    await sleep(5000);
+    const data = await apiGet({ action: 'generationStatus', idClase });
+    if (data.status === 'COMPLETADA' || data.status === 'PROMPT') {
+      showGeneratedClass(data);
+      toast('Clase lista.');
+      return;
+    }
+    if (data.status === 'ERROR') {
+      throw new Error(data.error || 'Error generando la clase.');
+    }
+    els.generateBtn.textContent = data.status === 'GENERANDO' ? 'Generando...' : 'En cola...';
+  }
+  throw new Error('La clase sigue preparandose. Pulsa actualizar o revisa el historial en un momento.');
 }
 
 function collectClassData(promptOnly) {
@@ -243,20 +287,16 @@ async function apiGet(params) {
 }
 
 async function apiPost(body) {
-  if (body.action === 'generateClass') {
-    const url = new URL(getWebAppUrl());
-    url.searchParams.set('action', 'generateClass');
-    url.searchParams.set('payload', JSON.stringify(body.payload || {}));
-    const response = await fetch(url.toString(), { method: 'GET' });
-    return parseApiResponse(response);
-  }
-
   const response = await fetch(getWebAppUrl(), {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(body)
   });
   return parseApiResponse(response);
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function parseApiResponse(response) {
