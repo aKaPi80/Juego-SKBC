@@ -3,6 +3,7 @@ const state = {
   selectedIds: new Set(),
   history: [],
   currentClassText: '',
+  videos: [],
   modeBlocks: [],
   modeIndex: 0
 };
@@ -109,7 +110,8 @@ async function generateClass(promptOnly) {
       toast('Prompt guardado.');
     } else {
       const data = await apiGet({ action: 'startGeneration', payload: JSON.stringify(payload) });
-      showWaitingClass(data.idClase);
+      state.videos = data.videos || [];
+      showWaitingClass(data.idClase, state.videos);
       activateTab('class');
       toast('Clase enviada. Preparando...');
       kickGeneration(data.idClase);
@@ -127,14 +129,15 @@ async function generateClass(promptOnly) {
 
 function showGeneratedClass(data) {
   state.currentClassText = data.classText || data.prompt || '';
+  state.videos = data.videos || state.videos || [];
   state.modeBlocks = splitClassBlocks(state.currentClassText);
   state.modeIndex = 0;
-  showClass(state.currentClassText, data.promptOnly);
+  showClass(state.currentClassText, data.promptOnly, state.videos);
   renderModeBlock();
   activateTab('class');
 }
 
-function showWaitingClass(idClase) {
+function showWaitingClass(idClase, videos) {
   els.emptyState.classList.add('hidden');
   els.classOutput.classList.remove('hidden');
   els.classOutput.innerHTML = `
@@ -144,6 +147,7 @@ function showWaitingClass(idClase) {
       <p>Solicitud ${escapeHtml(idClase)} enviada a la IA. Puedes dejar esta pantalla abierta.</p>
       <p class="muted-note">El movil consultara cada pocos segundos sin mantener una conexion larga.</p>
     </div>
+    ${renderVideoCards(videos || [])}
   `;
 }
 
@@ -153,6 +157,10 @@ async function pollGeneration(idClase) {
   while (Date.now() - started < maxMs) {
     await sleep(5000);
     const data = await apiGet({ action: 'generationStatus', idClase });
+    if (data.videos && data.videos.length) {
+      state.videos = data.videos;
+      showWaitingClass(idClase, state.videos);
+    }
     if (data.status === 'COMPLETADA' || data.status === 'PROMPT') {
       showGeneratedClass(data);
       toast('Clase lista.');
@@ -235,11 +243,11 @@ function updateSelectedCount() {
   els.selectedCount.textContent = `${total} seleccionado${total === 1 ? '' : 's'}`;
 }
 
-function showClass(text, promptOnly) {
+function showClass(text, promptOnly, videos) {
   els.emptyState.classList.add('hidden');
   els.classOutput.classList.remove('hidden');
   const label = promptOnly ? 'Prompt para ChatGPT' : 'Clase generada';
-  els.classOutput.innerHTML = `<h2>${label}</h2>${renderClassMarkup(text || 'Sin contenido.')}`;
+  els.classOutput.innerHTML = `<h2>${label}</h2>${renderVideoCards(videos || [])}${renderClassMarkup(text || 'Sin contenido.')}`;
 }
 
 function renderModeBlock() {
@@ -350,7 +358,7 @@ function markdownLite(text) {
 
 function renderClassMarkup(text) {
   const lines = String(text || '').split(/\r?\n/);
-  const labelPattern = /^(Nombre|Duracion|Objetivo real|Objetivo tecnico|Objetivo pedagogico|Material|Preparacion|Que digo|Reglas|Senales|Ejemplo de ronda|Como lo dirijo|Variantes rapidas|Correccion tecnica escondida|Adaptaciones|Inicio|Parada|Reagrupacion|Mas facil|Mas dificil|Si hay caos|Pequenos 5-8|Mayores 9-13|Necesitan estructura|Muy impulsivos|Timidos|Sensibilidad sensorial|Alumno|Que observar hoy|Accion concreta del sensei|Riesgos y precauciones|Objetivos ocultos para el sensei|Roles de mision del dia)$/i;
+  const labelPattern = /^(Nombre|Duracion|Objetivo real|Objetivo tecnico|Objetivo pedagogico|Material|Preparacion|Que digo|Reglas|Senales|Comandos japoneses|Ejemplo de ronda|Como lo dirijo|Variantes rapidas|Correccion tecnica escondida|Adaptaciones|Inicio|Parada|Reagrupacion|Que palabra usas para empezar|Que palabra usas para parar|Que palabra usas para formar\/reunir|Mas facil|Mas dificil|Si hay caos|Pequenos 5-8|Mayores 9-13|Necesitan estructura|Muy impulsivos|Timidos|Sensibilidad sensorial|Alumno|Que observar hoy|Accion concreta del sensei|Riesgos y precauciones|Objetivos ocultos para el sensei|Roles de mision del dia)$/i;
   let html = '';
   let listOpen = false;
 
@@ -423,6 +431,30 @@ function renderClassMarkup(text) {
 
   closeList();
   return html || '<p>Sin contenido.</p>';
+}
+
+function renderVideoCards(videos) {
+  if (!videos || !videos.length) return '';
+  return `
+    <section class="video-section">
+      <div>
+        <p class="eyebrow">Inspiracion visual opcional</p>
+        <h3>Ideas de juegos para adaptar al dojo</h3>
+      </div>
+      <div class="video-grid">
+        ${videos.slice(0, 4).map(video => `
+          <a class="video-card" href="${escapeHtml(video.url)}" target="_blank" rel="noopener noreferrer">
+            ${video.thumbnail ? `<img src="${escapeHtml(video.thumbnail)}" alt="">` : '<div class="video-thumb-fallback">&#9654;</div>'}
+            <span>
+              <strong>${escapeHtml(video.title || 'Video de inspiracion')}</strong>
+              <small>${escapeHtml(video.channel || video.query || 'YouTube')}</small>
+            </span>
+          </a>
+        `).join('')}
+      </div>
+      <p class="muted-note">No son instrucciones oficiales: sirven para inspirar dinamicas infantiles y luego convertirlas en Shorinji Kempo.</p>
+    </section>
+  `;
 }
 
 function normalize(value) {

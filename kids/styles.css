@@ -396,6 +396,71 @@ button {
   font-weight: 800;
 }
 
+.video-section {
+  display: grid;
+  gap: 12px;
+  margin: 14px 0 22px;
+  padding: 14px;
+  border: 1px solid rgba(31, 111, 139, 0.2);
+  border-radius: 8px;
+  background: #f1f9fb;
+}
+
+.video-section h3 {
+  margin: 0;
+  color: #123044;
+}
+
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.video-card {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 10px;
+  align-items: center;
+  min-height: 82px;
+  padding: 8px;
+  border: 1px solid rgba(31, 111, 139, 0.2);
+  border-radius: 8px;
+  background: white;
+  color: inherit;
+  text-decoration: none;
+}
+
+.video-card img,
+.video-thumb-fallback {
+  width: 112px;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #123044;
+}
+
+.video-thumb-fallback {
+  display: grid;
+  place-items: center;
+  color: white;
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.video-card strong {
+  display: block;
+  color: #123044;
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.video-card small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+}
+
 .class-output pre {
   white-space: pre-wrap;
   font-family: inherit;
@@ -495,8 +560,18 @@ button {
 
 @media (max-width: 560px) {
   .field-grid,
-  .students-grid {
+  .students-grid,
+  .video-grid {
     grid-template-columns: 1fr;
+  }
+
+  .video-card {
+    grid-template-columns: 96px 1fr;
+  }
+
+  .video-card img,
+  .video-thumb-fallback {
+    width: 96px;
   }
 
   .students-toolbar {
